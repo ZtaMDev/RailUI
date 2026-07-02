@@ -23,6 +23,7 @@ class RenderContext:
     """
     effects: List[str] = []
     init_scripts: List[str] = []
+    destroy_scripts: List[str] = []  # Per-route teardown/cleanup scripts
     user_effects: List[str] = []
     user_init_scripts: List[str] = []
     head_styles: List[str] = []   # Per-route <link> stylesheet URLs
@@ -34,6 +35,7 @@ class RenderContext:
         """Clear per-render state.  Does NOT clear user_effects or user_init_scripts."""
         cls.effects = []
         cls.init_scripts = []
+        cls.destroy_scripts = []
         cls.head_styles = []
         cls.head_scripts = []
         cls.template_mode = False
