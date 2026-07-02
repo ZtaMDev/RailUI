@@ -20,9 +20,14 @@ def Navbar() -> Component:
 def Layout(*children: Component) -> Component:
     return Page(
         Navbar(),
+        Slot("hero", source=children, default=""),
         Container(
-            *children,
-            class_name="w-full max-w-5xl mx-auto p-8"
+            Slot("body", source=children, default=Slot.Unassigned(children)),
+            class_name="w-full max-w-5xl mx-auto p-8 flex-grow"
         ),
+        Slot("footer", source=children, default=Container(
+            Text("© 2026 RailUI Framework. All rights reserved.", class_name="text-sm text-gray-500"),
+            class_name="w-full p-4 border-t border-gray-200 mt-auto text-center bg-white"
+        )),
         class_name="min-h-screen bg-gray-50 flex flex-col"
     )

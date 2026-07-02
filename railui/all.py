@@ -18,6 +18,7 @@ from .components.base import (
     Show, Each,
 )
 from .components.advanced import Suspense, ErrorBoundary, Head
+from .components.slots import Slot, SlotFill
 
 __all__ = [
     "DSLExpr", "RawJS",
@@ -29,5 +30,6 @@ __all__ = [
     "Textarea", "Select", "Option", "Label", "Form", "Link", "Image",
     "Show", "Each",
     "createStore", "useFetch", "Store",
-    "Suspense", "ErrorBoundary", "Head"
+    "Suspense", "ErrorBoundary", "Head",
+    "Slot", "SlotFill"
 ]

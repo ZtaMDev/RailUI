@@ -48,7 +48,10 @@ def get_color(val: str) -> str:
         "red-50": "#fef2f2", "red-500": "#ef4444", "red-600": "#dc2626", "red-700": "#b91c1c",
         "blue-50": "#eff6ff", "blue-400": "#60a5fa", "blue-500": "#3b82f6", "blue-600": "#2563eb", "blue-700": "#1d4ed8",
         "green-50": "#f0fdf4", "green-500": "#22c55e", "green-600": "#16a34a", "green-700": "#15803d",
-        "purple-50": "#faf5ff", "purple-500": "#a855f7", "purple-600": "#9333ea", "purple-700": "#7e22ce"
+        "purple-50": "#faf5ff", "purple-500": "#a855f7", "purple-600": "#9333ea", "purple-700": "#7e22ce",
+        "indigo-50": "#eef2ff", "indigo-200": "#c7d2fe", "indigo-400": "#818cf8", "indigo-500": "#6366f1", "indigo-600": "#4f46e5", "indigo-700": "#4338ca",
+        "pink-50": "#fdf2f8", "pink-500": "#ec4899", "pink-600": "#db2777",
+        "yellow-50": "#fefce8", "yellow-400": "#facc15", "yellow-500": "#eab308"
     }
     return palette.get(val, f"var(--color-{val}, {val})")
 
@@ -122,8 +125,8 @@ COMPILER_RULES: List[Tuple[re.Pattern, Callable[[re.Match], str]]] = [
     
     (re.compile(r"^bg-gradient-to-([trbl]+)$"), lambda m: "background-image: linear-gradient(to right, var(--tw-gradient-stops));" if m.group(1) == 'r' else f"background-image: linear-gradient(to {'bottom' if m.group(1)=='b' else 'top'}, var(--tw-gradient-stops));"),
     (re.compile(r"^bg-clip-(text|border|padding|content)$"), lambda m: f"-webkit-background-clip: {m.group(1)}; background-clip: {m.group(1)};"),
-    (re.compile(r"^from-(.+)$"), lambda m: f"--tw-gradient-from: {get_color(m.group(1))} var(--tw-gradient-from-position); --tw-gradient-to: {get_color(m.group(1))}00 var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);"),
-    (re.compile(r"^to-(.+)$"), lambda m: f"--tw-gradient-to: {get_color(m.group(1))} var(--tw-gradient-to-position);"),
+    (re.compile(r"^from-(.+)$"), lambda m: f"--tw-gradient-from: {get_color(m.group(1))}; --tw-gradient-to: {get_color(m.group(1))}00; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);"),
+    (re.compile(r"^to-(.+)$"), lambda m: f"--tw-gradient-to: {get_color(m.group(1))};"),
     (re.compile(r"^bg-(.+)$"), lambda m: f"background-color: {get_color(m.group(1).strip('[]'))};"),
     
     (re.compile(r"^border$"), lambda m: "border-width: 1px;"),
