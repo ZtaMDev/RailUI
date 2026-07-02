@@ -1,12 +1,15 @@
 """
-RailUI Framework
-================
+RailUI
 
-A highly optimized Python frontend framework that compiles a Python Domain Specific Language (DSL)
-into native JavaScript, zero-VDOM HTML templates.
-
-This framework allows developers to write reactive User Interfaces completely in Python, and have
-them compile down to extremely efficient, dependency-free HTML and JavaScript bundles.
+A pure-Python UI framework that compiles directly into dependency-free Javascript/HTML SPA bundles.
 """
+
+__all__ = [
+    "DSLExpr", "RawJS", "log", "alert", "set_timeout", "add_class", "remove_class", "toggle_class", "runSequence",
+    "createSignal", "createEffect", "useComputed", "createStore", "useFetch", "Store",
+    "not_", "App",
+    "Component", "Container", "Text", "Button", "Input", "Textarea", "Select", "Option", "Label", "Form", "Link", "Image", "Page", "Show", "Each",
+    "Suspense", "ErrorBoundary", "Head"
+]
 
 from .all import *

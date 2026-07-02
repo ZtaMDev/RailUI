@@ -8,6 +8,27 @@ and DOM APIs, preventing the need for raw JS strings in the frontend code.
 from typing import Any
 from .ast import CallOp, RawJS, DSLExpr, to_dsl
 
+def not_(expr: Any) -> RawJS:
+    """
+    Negate a boolean DSL expression.
+
+    Compiles to ``!(expr)`` in JavaScript.  Useful for ``Show(when=not_(loading()))``
+    or any condition that requires logical inversion.
+
+    Args:
+        expr (Any): A ``DSLExpr`` or value to negate.
+
+    Returns:
+        RawJS: The negated expression AST node.
+
+    Example::
+
+        loading, setLoading = createSignal(True)
+
+        Show(Text("Content loaded!"), when=not_(loading()))
+    """
+    return RawJS(f"!({to_dsl(expr).to_js()})")
+
 def log(*args: Any) -> CallOp:
     """
     Generate a console.log statement in the compiled Javascript.

@@ -1,133 +1,421 @@
 """
 Core Component system for RailUI.
 
-This module defines the Base Component and standard HTML elements like Container,
-Text, Button, and Input.
+This module defines the base ``Component`` class and all built-in HTML elements.
+All components provide type hints for their standard HTML properties and events
+to enable rich IDE autocomplete.
 """
 
 import uuid
-from typing import Any, Union, Dict, Callable
+from typing import Any, Callable, Dict, Optional, Union
 from ..core.ast import DSLExpr, to_dsl
 from ..core.context import RenderContext
-from ..core.css import register_classes
+from ..core.css import register_classes, register_hover_for_element, register_active_for_element
+
+
+def _filter_none(**kwargs: Any) -> Dict[str, Any]:
+    return {k: v for k, v in kwargs.items() if v is not None}
+
 
 class Component:
-    """
-    Base class for all RailUI UI elements.
-    """
-    def __init__(self, *children: Union["Component", DSLExpr, str], **kwargs: Any) -> None:
+    """Base class for all RailUI UI elements."""
+    def __init__(
+        self,
+        *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None,
+        class_name: Optional[str] = None,
+        hover_class: Optional[str] = None,
+        active_class: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None,
+        style: Optional[str] = None,
+        bind: Optional[Any] = None,
+        on_click: Optional[DSLExpr] = None,
+        on_input: Optional[DSLExpr] = None,
+        on_change: Optional[DSLExpr] = None,
+        on_keydown: Optional[DSLExpr] = None,
+        on_keyup: Optional[DSLExpr] = None,
+        on_keypress: Optional[DSLExpr] = None,
+        on_submit: Optional[DSLExpr] = None,
+        on_focus: Optional[DSLExpr] = None,
+        on_blur: Optional[DSLExpr] = None,
+        on_mouseenter: Optional[DSLExpr] = None,
+        on_mouseleave: Optional[DSLExpr] = None,
+        on_mousedown: Optional[DSLExpr] = None,
+        on_mouseup: Optional[DSLExpr] = None,
+        on_dblclick: Optional[DSLExpr] = None,
+        on_contextmenu: Optional[DSLExpr] = None,
+        on_scroll: Optional[DSLExpr] = None,
+        on_load: Optional[DSLExpr] = None,
+        **kwargs: Any
+    ) -> None:
         self.tag_name: str = "div"
         self.children = children
-        self.kwargs = kwargs
+        self.kwargs: Dict[str, Any] = _filter_none(
+            id=id, class_name=class_name, hover_class=hover_class,
+            active_class=active_class, class_list=class_list, style=style,
+            bind=bind, on_click=on_click, on_input=on_input, on_change=on_change,
+            on_keydown=on_keydown, on_keyup=on_keyup, on_keypress=on_keypress,
+            on_submit=on_submit, on_focus=on_focus, on_blur=on_blur,
+            on_mouseenter=on_mouseenter, on_mouseleave=on_mouseleave,
+            on_mousedown=on_mousedown, on_mouseup=on_mouseup,
+            on_dblclick=on_dblclick, on_contextmenu=on_contextmenu,
+            on_scroll=on_scroll, on_load=on_load,
+            **kwargs
+        )
 
     def render(self) -> str:
         attrs = []
-        uid = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
+        uid: str = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
         has_id_in_kwargs = "id" in self.kwargs
-        
-        # We might need an ID for reactive bindings
+
         has_events = any(k.startswith("on_") for k in self.kwargs)
         needs_id = not has_id_in_kwargs and (
-            "bind" in self.kwargs or "class_list" in self.kwargs or has_events
+            "bind" in self.kwargs or "class_list" in self.kwargs or
+            "hover_class" in self.kwargs or "active_class" in self.kwargs or has_events
         )
         if needs_id or has_id_in_kwargs:
             attrs.append(f'id="{uid}"')
 
-        # Process CSS classes
         base_classes = []
         if "class_name" in self.kwargs:
-            cls_str = self.kwargs.pop("class_name")
+            cls_str: str = self.kwargs.pop("class_name")
             base_classes.append(cls_str)
             register_classes(cls_str)
-            
+
         if "hover_class" in self.kwargs:
-            h_cls = self.kwargs.pop("hover_class")
-            base_classes.append(h_cls)
-            register_classes(h_cls, pseudo=":hover")
-            
+            register_hover_for_element(uid, self.kwargs.pop("hover_class"))
+
         if "active_class" in self.kwargs:
-            a_cls = self.kwargs.pop("active_class")
-            base_classes.append(a_cls)
-            register_classes(a_cls, pseudo=":active")
-            
+            register_active_for_element(uid, self.kwargs.pop("active_class"))
+
         if "class_list" in self.kwargs:
-            cl_dict = self.kwargs.pop("class_list")
+            cl_dict: dict = self.kwargs.pop("class_list")
             for cls_names, condition in cl_dict.items():
                 register_classes(cls_names)
-                # Register JS effect for toggle
-                # condition should be a DSLExpr
                 cond_js = to_dsl(condition).to_js()
                 for individual_cls in cls_names.split():
                     if not individual_cls.strip(): continue
-                    effect_js = f'document.getElementById("{uid}").classList.toggle("{individual_cls}", {cond_js});'
-                    RenderContext.effects.append(effect_js)
+                    if RenderContext.template_mode:
+                        base_classes.append(f"${{{cond_js} ? '{individual_cls}' : ''}}")
+                    else:
+                        RenderContext.effects.append(
+                            f'document.getElementById("{uid}").classList.toggle("{individual_cls}", {cond_js});'
+                        )
 
         if base_classes:
             attrs.append(f'class="{" ".join(base_classes)}"')
 
-        for k, v in self.kwargs.items():
-            if k == "id":
-                pass # Handled above
+        for k, v in list(self.kwargs.items()):
+            if k == "id": pass
             elif k.startswith("on_"):
                 event_name = k[3:]
-                if isinstance(v, DSLExpr):
-                    js_code = v.to_js()
-                else:
-                    js_code = str(v)
-                RenderContext.init_scripts.append(f'document.getElementById("{uid}").addEventListener("{event_name}", function(event) {{ {js_code} }});')
+                js_code = v.to_js() if isinstance(v, DSLExpr) else str(v)
+                RenderContext.init_scripts.append(
+                    f'document.getElementById("{uid}").addEventListener("{event_name}", function(event) {{ {js_code} }});'
+                )
             elif k == "style":
                 attrs.append(f'style="{v}"')
             elif k == "bind":
-                js_code = f"{v.setter_name}(event.target.value)"
-                RenderContext.init_scripts.append(f'document.getElementById("{uid}").addEventListener("input", function(event) {{ {js_code} }});')
+                setter_js = f"{v.setter_name}(event.target.value)"
+                RenderContext.init_scripts.append(
+                    f'document.getElementById("{uid}").addEventListener("input", function(event) {{ {setter_js} }});'
+                )
                 RenderContext.effects.append(f'document.getElementById("{uid}").value = {v.sid}();')
             else:
-                attrs.append(f'{k}="{v}"')
-        
+                attr_name = k.replace("_", "-") if k.startswith("data_") or k.startswith("aria_") else k
+                attrs.append(f'{attr_name}="{v}"')
+
         attr_str = " " + " ".join(attrs) if attrs else ""
-        
+
         child_html = ""
         for c in self.children:
             if isinstance(c, Component):
                 child_html += c.render()
             elif isinstance(c, DSLExpr):
-                child_uid = f"el_{uuid.uuid4().hex[:8]}"
-                child_html += f'<span id="{child_uid}"></span>'
-                RenderContext.effects.append(f'document.getElementById("{child_uid}").innerText = {c.to_js()};')
+                if RenderContext.template_mode:
+                    child_html += f"${{{c.to_js()}}}"
+                else:
+                    child_uid = f"el_{uuid.uuid4().hex[:8]}"
+                    child_html += f'<span id="{child_uid}"></span>'
+                    RenderContext.effects.append(f'document.getElementById("{child_uid}").innerText = {c.to_js()};')
             else:
                 child_html += str(c)
-                
-        if self.tag_name in ["input", "img", "br", "hr", "meta", "link"]:
+
+        if self.tag_name in ("input", "img", "br", "hr", "meta", "link"):
             return f"<{self.tag_name}{attr_str} />"
-            
         return f"<{self.tag_name}{attr_str}>{child_html}</{self.tag_name}>"
 
+
 class Container(Component):
-    """A generic div container element."""
-    def __init__(self, *children: Union["Component", DSLExpr, str], **kwargs: Any) -> None:
-        super().__init__(*children, **kwargs)
+    """A generic block-level ``<div>`` container."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        hover_class: Optional[str] = None, active_class: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None, style: Optional[str] = None,
+        on_click: Optional[DSLExpr] = None, **kwargs: Any
+    ) -> None:
+        super().__init__(
+            *children, id=id, class_name=class_name, hover_class=hover_class,
+            active_class=active_class, class_list=class_list, style=style,
+            on_click=on_click, **kwargs
+        )
         self.tag_name = "div"
 
+
 class Text(Component):
-    """An inline span text element."""
-    def __init__(self, *children: Union["Component", DSLExpr, str], **kwargs: Any) -> None:
-        super().__init__(*children, **kwargs)
+    """An inline ``<span>`` text node."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        hover_class: Optional[str] = None, class_list: Optional[Dict[str, DSLExpr]] = None,
+        style: Optional[str] = None, **kwargs: Any
+    ) -> None:
+        super().__init__(
+            *children, id=id, class_name=class_name, hover_class=hover_class,
+            class_list=class_list, style=style, **kwargs
+        )
         self.tag_name = "span"
 
+
 class Button(Component):
-    """A clickable button element."""
-    def __init__(self, *children: Union["Component", DSLExpr, str], **kwargs: Any) -> None:
-        super().__init__(*children, **kwargs)
+    """A ``<button>`` element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        hover_class: Optional[str] = None, active_class: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None, style: Optional[str] = None,
+        type: str = "button", disabled: Optional[Union[bool, str]] = None,
+        on_click: Optional[DSLExpr] = None, on_dblclick: Optional[DSLExpr] = None,
+        on_mouseenter: Optional[DSLExpr] = None, on_mouseleave: Optional[DSLExpr] = None,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            *children, id=id, class_name=class_name, hover_class=hover_class,
+            active_class=active_class, class_list=class_list, style=style,
+            type=type, disabled=disabled, on_click=on_click, on_dblclick=on_dblclick,
+            on_mouseenter=on_mouseenter, on_mouseleave=on_mouseleave, **kwargs
+        )
         self.tag_name = "button"
 
+
 class Input(Component):
-    """An input field. Use `bind=signal` to create a two-way binding."""
-    def __init__(self, *children: Union["Component", DSLExpr, str], **kwargs: Any) -> None:
-        super().__init__(*children, **kwargs)
+    """An ``<input />`` element."""
+    def __init__(
+        self,
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        hover_class: Optional[str] = None, active_class: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None, style: Optional[str] = None,
+        type: str = "text", value: Optional[str] = None, placeholder: Optional[str] = None,
+        name: Optional[str] = None, disabled: Optional[Union[bool, str]] = None,
+        readonly: Optional[Union[bool, str]] = None, checked: Optional[Union[bool, str]] = None,
+        min: Optional[str] = None, max: Optional[str] = None, step: Optional[str] = None,
+        bind: Optional[Any] = None,
+        on_input: Optional[DSLExpr] = None, on_change: Optional[DSLExpr] = None,
+        on_focus: Optional[DSLExpr] = None, on_blur: Optional[DSLExpr] = None,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            id=id, class_name=class_name, hover_class=hover_class, active_class=active_class,
+            class_list=class_list, style=style, type=type, value=value, placeholder=placeholder,
+            name=name, disabled=disabled, readonly=readonly, checked=checked, min=min, max=max,
+            step=step, bind=bind, on_input=on_input, on_change=on_change,
+            on_focus=on_focus, on_blur=on_blur, **kwargs
+        )
         self.tag_name = "input"
 
+
+class Textarea(Component):
+    """A ``<textarea>`` element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        hover_class: Optional[str] = None, active_class: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None, style: Optional[str] = None,
+        rows: Optional[Union[int, str]] = None, cols: Optional[Union[int, str]] = None,
+        placeholder: Optional[str] = None, name: Optional[str] = None,
+        disabled: Optional[Union[bool, str]] = None, readonly: Optional[Union[bool, str]] = None,
+        bind: Optional[Any] = None,
+        on_input: Optional[DSLExpr] = None, on_change: Optional[DSLExpr] = None,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            *children, id=id, class_name=class_name, hover_class=hover_class,
+            active_class=active_class, class_list=class_list, style=style,
+            rows=rows, cols=cols, placeholder=placeholder, name=name,
+            disabled=disabled, readonly=readonly, bind=bind,
+            on_input=on_input, on_change=on_change, **kwargs
+        )
+        self.tag_name = "textarea"
+
+
+class Select(Component):
+    """A ``<select>`` element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        hover_class: Optional[str] = None, class_list: Optional[Dict[str, DSLExpr]] = None,
+        style: Optional[str] = None, name: Optional[str] = None,
+        multiple: Optional[Union[bool, str]] = None, disabled: Optional[Union[bool, str]] = None,
+        bind: Optional[Any] = None, on_change: Optional[DSLExpr] = None,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            *children, id=id, class_name=class_name, hover_class=hover_class,
+            class_list=class_list, style=style, name=name, multiple=multiple,
+            disabled=disabled, bind=bind, on_change=on_change, **kwargs
+        )
+        self.tag_name = "select"
+
+
+class Option(Component):
+    """An ``<option>`` element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        value: Optional[str] = None, selected: Optional[Union[bool, str]] = None,
+        disabled: Optional[Union[bool, str]] = None, **kwargs: Any
+    ) -> None:
+        super().__init__(*children, value=value, selected=selected, disabled=disabled, **kwargs)
+        self.tag_name = "option"
+
+
+class Label(Component):
+    """A ``<label>`` element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        for_: Optional[str] = None, id: Optional[str] = None,
+        class_name: Optional[str] = None, hover_class: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None, style: Optional[str] = None,
+        **kwargs: Any
+    ) -> None:
+        if for_ is not None:
+            kwargs["for"] = for_
+        super().__init__(
+            *children, id=id, class_name=class_name, hover_class=hover_class,
+            class_list=class_list, style=style, **kwargs
+        )
+        self.tag_name = "label"
+
+
+class Form(Component):
+    """A ``<form>`` element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None, style: Optional[str] = None,
+        action: Optional[str] = None, method: Optional[str] = None,
+        enctype: Optional[str] = None, on_submit: Optional[DSLExpr] = None,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            *children, id=id, class_name=class_name, class_list=class_list,
+            style=style, action=action, method=method, enctype=enctype,
+            on_submit=on_submit, **kwargs
+        )
+        self.tag_name = "form"
+
+
+class Link(Component):
+    """An ``<a>`` anchor element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        href: str, target: Optional[str] = None, rel: Optional[str] = None,
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        hover_class: Optional[str] = None, class_list: Optional[Dict[str, DSLExpr]] = None,
+        style: Optional[str] = None, on_click: Optional[DSLExpr] = None,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            *children, href=href, target=target, rel=rel, id=id, class_name=class_name,
+            hover_class=hover_class, class_list=class_list, style=style, on_click=on_click,
+            **kwargs
+        )
+        self.tag_name = "a"
+
+
+class Image(Component):
+    """An ``<img />`` element."""
+    def __init__(
+        self, src: str, alt: str,
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        class_list: Optional[Dict[str, DSLExpr]] = None, style: Optional[str] = None,
+        width: Optional[Union[int, str]] = None, height: Optional[Union[int, str]] = None,
+        loading: Optional[str] = None, on_load: Optional[DSLExpr] = None,
+        on_error: Optional[DSLExpr] = None, **kwargs: Any
+    ) -> None:
+        super().__init__(
+            src=src, alt=alt, id=id, class_name=class_name, class_list=class_list,
+            style=style, width=width, height=height, loading=loading,
+            on_load=on_load, on_error=on_error, **kwargs
+        )
+        self.tag_name = "img"
+
+
 class Page(Component):
-    """A semantic main element, typically used as the root of a view."""
-    def __init__(self, *children: Union["Component", DSLExpr, str], **kwargs: Any) -> None:
-        super().__init__(*children, **kwargs)
+    """A semantic ``<main>`` element."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        style: Optional[str] = None, **kwargs: Any
+    ) -> None:
+        super().__init__(*children, id=id, class_name=class_name, style=style, **kwargs)
         self.tag_name = "main"
+
+
+class Show(Component):
+    """Conditional rendering component."""
+    def __init__(
+        self, *children: Union["Component", DSLExpr, str],
+        when: DSLExpr, id: Optional[str] = None, class_name: Optional[str] = None,
+        style: Optional[str] = None, **kwargs: Any
+    ) -> None:
+        super().__init__(*children, id=id, class_name=class_name, style=style, **kwargs)
+        self.tag_name = "div"
+        self._when = when
+
+    def render(self) -> str:
+        uid: str = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
+        self.kwargs["id"] = uid
+        cond_js = self._when.to_js() if isinstance(self._when, DSLExpr) else str(self._when)
+        RenderContext.effects.append(f'$show("{uid}", {cond_js});')
+        return super().render()
+
+
+class Each(Component):
+    """Reactive list rendering component."""
+    def __init__(
+        self, items: DSLExpr, render_fn: Callable[[Any, Any], Union["Component", str]],
+        id: Optional[str] = None, class_name: Optional[str] = None,
+        style: Optional[str] = None, **kwargs: Any
+    ) -> None:
+        super().__init__(id=id, class_name=class_name, style=style, **kwargs)
+        self._items = items
+        self._render_fn = render_fn
+
+    def render(self) -> str:
+        uid: str = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
+        self.kwargs["id"] = uid
+
+        from ..core.ast import ItemProxy
+        old_mode = RenderContext.template_mode
+        old_effects_len = len(RenderContext.effects)
+        old_init_scripts_len = len(RenderContext.init_scripts)
+        RenderContext.template_mode = True
+
+        try:
+            item_proxy = ItemProxy("item")
+            index_proxy = ItemProxy("index")
+            component_tree = self._render_fn(item_proxy, index_proxy)
+            template_html = component_tree.render() if isinstance(component_tree, Component) else str(component_tree)
+        finally:
+            RenderContext.template_mode = old_mode
+            if len(RenderContext.effects) > old_effects_len:
+                RenderContext.effects = RenderContext.effects[:old_effects_len]
+            if len(RenderContext.init_scripts) > old_init_scripts_len:
+                RenderContext.init_scripts = RenderContext.init_scripts[:old_init_scripts_len]
+
+        safe_html = template_html.replace("\\", "\\\\").replace("`", "\\`")
+        items_js = self._items.to_js() if isinstance(self._items, DSLExpr) else str(self._items)
+        effect = f'$renderEach("{uid}", {items_js}, (item, index) => `{safe_html}`);'
+        RenderContext.effects.append(effect)
+        return super().render()

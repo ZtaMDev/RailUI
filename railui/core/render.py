@@ -45,10 +45,14 @@ def build_js() -> str:
     for effect in RenderContext.user_effects:
         js += f"$effects.push(() => {{ {effect} }});\n"
         
-    # Register init scripts (event listeners)
+    # Register init scripts (event listeners, one-time operations)
     for script in RenderContext.init_scripts:
         js += f"{script}\n"
-        
+
+    # Register user-declared one-shot scripts (useFetch etc.)
+    for script in RenderContext.user_init_scripts:
+        js += f"{script}\n"
+
     js += "runEffects();\n"
     return js
 

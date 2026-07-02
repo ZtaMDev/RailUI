@@ -11,18 +11,25 @@ class SignalContext:
 class RenderContext:
     """
     Context holding all JavaScript side effects generated during compilation.
-    
-    Two buckets exist intentionally:
-    - ``effects``/``init_scripts``: populated during component ``.render()`` — cleared on each compile pass.
-    - ``user_effects``: populated by explicit ``createEffect()`` calls in user code before ``compile_app()`` — 
-      never cleared so they survive the render reset and always make it into the final bundle.
+
+    Three lifecycle buckets exist intentionally:
+
+    - ``effects`` / ``init_scripts``: populated during component ``.render()`` —
+      cleared on each compile pass.
+    - ``user_effects``: populated by explicit ``createEffect()`` calls — never
+      cleared so they survive the render reset.
+    - ``user_init_scripts``: populated by ``useFetch`` and similar one-shot hooks
+      that must run *once* at page load, not on every reactive update.
     """
     effects: List[str] = []
     init_scripts: List[str] = []
     user_effects: List[str] = []
-    
+    user_init_scripts: List[str] = []
+    template_mode: bool = False  # When True, DSLExpr children embed inline as ${...}
+
     @classmethod
     def reset(cls) -> None:
-        """Clear per-render state. Does NOT clear user_effects — those are declared once at the module level."""
+        """Clear per-render state.  Does NOT clear user_effects or user_init_scripts."""
         cls.effects = []
         cls.init_scripts = []
+        cls.template_mode = False

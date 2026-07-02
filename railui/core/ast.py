@@ -102,3 +102,46 @@ class RawJS(DSLExpr):
         
     def to_js(self) -> str:
         return self.js_code
+
+
+class ItemProxy(DSLExpr):
+    """
+    A compile-time proxy representing one item in an ``Each`` list.
+
+    Passed as the first argument to ``Each``'s ``render_fn``.  Attribute access
+    on the proxy returns ``RawJS`` nodes that compile to ``${item.prop}``
+    template-literal interpolations in the generated JavaScript.
+
+    The proxy itself (without attribute access) compiles to ``${item}``,
+    useful when list items are plain primitives (strings, numbers).
+
+    Args:
+        var_name (str): The JavaScript variable name to use inside the template
+            (``"item"`` for items, ``"index"`` for the loop index).
+
+    Example::
+
+        Each(
+            items=todos,
+            render_fn=lambda item, i: Container(
+                Text(item.title, class_name="font-bold"),
+                Text(item.body, class_name="text-sm text-gray-500"),
+                class_name="p-4 border-b",
+            )
+        )
+    """
+
+    def __init__(self, var_name: str) -> None:
+        self._var_name = var_name
+
+    def __getattr__(self, key: str) -> RawJS:
+        if key.startswith("_"):
+            raise AttributeError(key)
+        return RawJS(f"{self._var_name}.{key}")
+
+    def __call__(self) -> "ItemProxy":
+        """Make the proxy callable so it works where SignalGetters are expected."""
+        return self
+
+    def to_js(self) -> str:
+        return self._var_name
