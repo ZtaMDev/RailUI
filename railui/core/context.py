@@ -25,6 +25,8 @@ class RenderContext:
     init_scripts: List[str] = []
     user_effects: List[str] = []
     user_init_scripts: List[str] = []
+    head_styles: List[str] = []   # Per-route <link> stylesheet URLs
+    head_scripts: List[str] = []  # Per-route <script src> URLs
     template_mode: bool = False  # When True, DSLExpr children embed inline as ${...}
 
     @classmethod
@@ -32,4 +34,6 @@ class RenderContext:
         """Clear per-render state.  Does NOT clear user_effects or user_init_scripts."""
         cls.effects = []
         cls.init_scripts = []
+        cls.head_styles = []
+        cls.head_scripts = []
         cls.template_mode = False

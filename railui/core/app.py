@@ -21,6 +21,7 @@ class App:
         self.trailing_slash = trailing_slash
         self.external_css: List[str] = []
         self.external_js: List[str] = []
+        self.raw_scripts: List[str] = []
         
         # path -> component_factory
         self.routes: Dict[str, Callable[[], Component]] = {}
@@ -29,13 +30,17 @@ class App:
         self.not_found_component: Optional[Callable[[], Component]] = None
         self.forbidden_component: Optional[Callable[[], Component]] = None
 
-    def add_css(self, url: str) -> None:
-        """Inject an external CSS stylesheet (e.g. from a CDN)."""
+    def add_style(self, url: str) -> None:
+        """Inject an external CSS stylesheet globally (e.g. from a CDN)."""
         self.external_css.append(url)
 
-    def add_js(self, url: str) -> None:
-        """Inject an external JS script."""
+    def add_script(self, url: str) -> None:
+        """Inject an external JS script globally."""
         self.external_js.append(url)
+
+    def add_raw_script(self, js_code: str) -> None:
+        """Inject an inline JS snippet into the global <head>."""
+        self.raw_scripts.append(js_code)
 
     def set_not_found(self, component_factory: Callable[[], Component]) -> None:
         self.not_found_component = component_factory
@@ -119,6 +124,8 @@ class App:
                 "html": html,
                 "effects": list(RenderContext.effects),
                 "init": list(RenderContext.init_scripts),
+                "head_styles": list(RenderContext.head_styles),
+                "head_scripts": list(RenderContext.head_scripts),
             }
 
         not_found_data = None
@@ -128,7 +135,9 @@ class App:
             not_found_data = {
                 "html": html,
                 "effects": list(RenderContext.effects),
-                "init": list(RenderContext.init_scripts)
+                "init": list(RenderContext.init_scripts),
+                "head_styles": list(RenderContext.head_styles),
+                "head_scripts": list(RenderContext.head_scripts),
             }
 
         # 2. Build Router JS Bundle
@@ -174,6 +183,7 @@ $effects.push(() => {{
 
         css_links = "\n    ".join(f'<link rel="stylesheet" href="{url}">' for url in self.external_css)
         js_links = "\n    ".join(f'<script src="{url}"></script>' for url in self.external_js)
+        raw_script_tags = "\n    ".join(f'<script>{code}</script>' for code in self.raw_scripts)
 
         html_template = f"""<!DOCTYPE html>
 <html lang="en">
@@ -183,6 +193,7 @@ $effects.push(() => {{
     <title>{self.title}</title>
     {css_links}
     <link rel="stylesheet" href="{css_filename}">
+    {raw_script_tags}
 </head>
 <body class="bg-gray-50 min-h-screen text-gray-900 font-sans">
     <div id="railui-root"></div>

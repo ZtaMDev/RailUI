@@ -4,7 +4,7 @@ Advanced Components for RailUI.
 Includes utilities like Suspense, ErrorBoundary, Head, etc.
 """
 
-from typing import Union, Any, Optional
+from typing import Union, Any, Optional, List
 import uuid
 
 from .base import Component, Container
@@ -13,23 +13,33 @@ from ..core.context import RenderContext
 
 class Head(Component):
     """
-    Injects tags into the document <head>.
-    For SEO manipulation per route.
+    Injects tags into the document <head> dynamically per-route.
+
+    Args:
+        title (str, optional): Sets document.title when this route is active.
+        meta (dict, optional): Key-value pairs of <meta name="..." content="...">.
+        styles (list, optional): List of CSS URLs to inject as <link> per-route.
+        scripts (list, optional): List of JS URLs to inject as <script src> per-route.
     """
-    def __init__(self, title: Optional[str] = None, meta: Optional[dict] = None) -> None:
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        meta: Optional[dict] = None,
+        styles: Optional[List[str]] = None,
+        scripts: Optional[List[str]] = None,
+    ) -> None:
         super().__init__()
-        self.tag_name = "div" # We render a hidden div and use JS to move things to head
+        self.tag_name = "div"
         self.title = title
         self.meta = meta or {}
+        self.styles = styles or []
+        self.scripts = scripts or []
         
     def render(self) -> str:
-        # Instead of returning HTML, we inject an initialization script
-        # that sets the document.title and meta tags dynamically.
         if self.title:
             RenderContext.init_scripts.append(f'document.title = "{self.title}";')
             
         for key, value in self.meta.items():
-            # Basic meta tag injection
             script = f"""
             let m_{key} = document.querySelector('meta[name="{key}"]');
             if (!m_{key}) {{
@@ -40,8 +50,40 @@ class Head(Component):
             m_{key}.content = "{value}";
             """
             RenderContext.init_scripts.append(script)
+
+        # Per-route CSS injection — tracked for the router to dynamically add/remove
+        for url in self.styles:
+            RenderContext.head_styles.append(url)
+            script = f"""
+            (function() {{
+                const id = 'railui-style-{url.replace('/', '_').replace('.', '_').replace(':', '_')}';
+                if (!document.getElementById(id)) {{
+                    const link = document.createElement('link');
+                    link.id = id;
+                    link.rel = 'stylesheet';
+                    link.href = '{url}';
+                    document.head.appendChild(link);
+                }}
+            }})();
+            """
+            RenderContext.init_scripts.append(script)
+
+        # Per-route JS injection
+        for url in self.scripts:
+            RenderContext.head_scripts.append(url)
+            script = f"""
+            (function() {{
+                const id = 'railui-script-{url.replace('/', '_').replace('.', '_').replace(':', '_')}';
+                if (!document.getElementById(id)) {{
+                    const s = document.createElement('script');
+                    s.id = id;
+                    s.src = '{url}';
+                    document.head.appendChild(s);
+                }}
+            }})();
+            """
+            RenderContext.init_scripts.append(script)
             
-        # Return empty string since this is purely a side-effect component
         return ""
 
 
