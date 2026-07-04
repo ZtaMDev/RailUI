@@ -35,6 +35,14 @@ watchdog>=4.0
 """
 
 
+_VERCEL_JSON = """{
+  "version": 2,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+"""
+
 def _write_if_missing(path: str, content: str) -> None:
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
@@ -45,12 +53,15 @@ def _write_if_missing(path: str, content: str) -> None:
 
 import subprocess
 import time
+import shutil
+from .config import RailUIConfig
+from .bundler import run_bundler
 
 def _format_size(size: int) -> str:
     """Format bytes to kB with 2 decimal places."""
     return f"{size / 1024:.2f} kB"
 
-def run(project_dir: str) -> int:
+def run(project_dir: str, config: RailUIConfig) -> int:
     """Execute a production build and generate deployment files."""
     main_py = os.path.join(project_dir, "main.py")
     if not os.path.exists(main_py):
@@ -60,10 +71,18 @@ def run(project_dir: str) -> int:
     print(f"\n\033[36mrailui\033[0m building for production...\n")
     start_time = time.monotonic()
 
+    # Determine outdir from config
+    dist_dir = os.path.join(project_dir, config.outdir)
+
+    # Inject config into the environment
+    env = os.environ.copy()
+    env["RAILUI_OUTDIR"] = dist_dir
+
     # 1. Run the build in a clean subprocess to capture output
     result = subprocess.run(
         [sys.executable, main_py],
         cwd=project_dir,
+        env=env,
         capture_output=True,
         text=True
     )
@@ -73,14 +92,40 @@ def run(project_dir: str) -> int:
         print(result.stderr)
         return 1
 
-    # 2. Generate deployment artefacts
-    _write_if_missing(os.path.join(project_dir, "railway.toml"), _RAILWAY_TOML)
-    _write_if_missing(os.path.join(project_dir, "Procfile"), _PROCFILE)
-    _write_if_missing(os.path.join(project_dir, "requirements.txt"), _REQUIREMENTS_HINT)
+    # 2. Copy public directories to outdir
+    for pdir in config.public_dirs:
+        src = os.path.join(project_dir, pdir)
+        if os.path.isdir(src):
+            for item in os.listdir(src):
+                s = os.path.join(src, item)
+                d = os.path.join(dist_dir, item)
+                if os.path.isdir(s):
+                    shutil.copytree(s, d, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(s, d)
 
-    # 3. Print the beautiful summary of generated files
-    dist_dir = os.path.join(project_dir, "dist")
-    print(f"\n\033[32m✓\033[0m \033[2mbuild complete in {time.monotonic() - start_time:.2f}s\033[0m\n")
+    # 3. Minify using dars-bundler if enabled
+    if config.bundle:
+        run_bundler(dist_dir)
+
+    # 4. Generate deployment artefacts
+    if config.platform == "railway":
+        _write_if_missing(os.path.join(project_dir, "railway.toml"), _RAILWAY_TOML)
+        _write_if_missing(os.path.join(project_dir, "Procfile"), _PROCFILE)
+        _write_if_missing(os.path.join(project_dir, "requirements.txt"), _REQUIREMENTS_HINT)
+    elif config.platform == "vercel":
+        _write_if_missing(os.path.join(project_dir, "vercel.json"), _VERCEL_JSON)
+        # Check for server actions and warn
+        actions_used = False
+        with open(main_py, "r", encoding="utf-8") as f:
+            if "server_action" in f.read():
+                actions_used = True
+        if actions_used:
+            print("\n\033[33m[railui] WARNING: You are deploying to Vercel (static) but your code contains @server_actions. These will NOT work without a Python backend!\033[0m")
+
+    # 5. Print the beautiful summary of generated files
+    dist_dir = os.path.join(project_dir, config.outdir)
+    print(f"\n\033[32mOK\033[0m \033[2mbuild complete in {time.monotonic() - start_time:.2f}s\033[0m\n")
     
     if os.path.exists(dist_dir):
         files = []
@@ -99,5 +144,8 @@ def run(project_dir: str) -> int:
             # Format: right-aligned size, colored path
             print(f"  {_format_size(size):>10}  {color}{rel_path.replace(os.sep, '/')}\033[0m")
             
-    print("\n\033[32mReady for deployment! (\033[1mrailway up\033[0m)\n")
+    if config.platform == "vercel":
+        print("\n\033[32mReady for deployment! (\033[1mvercel\033[0m)\n")
+    else:
+        print("\n\033[32mReady for deployment! (\033[1mrailway up\033[0m)\n")
     return 0

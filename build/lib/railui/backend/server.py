@@ -4,14 +4,12 @@ railui/backend/server.py
 FastAPI application factory for RailUI.
 
 In **dev mode** (default):
-  - Serves ``dist/`` as static files.
-  - Injects an HMR script into ``index.html`` that listens for Server-Sent Events.
-  - Exposes ``GET /railui-hmr`` as an SSE stream; the dev watcher sends a
-    ``reload`` event through this stream whenever a rebuild completes.
-  - All unrecognised routes return ``dist/index.html`` (SPA catch-all).
+  - Serves files from ``dist/`` directly.
+  - Injects an HMR script into ``index.html`` via SSE for live reload.
+  - All unrecognized routes return ``dist/index.html`` (SPA catch-all).
 
 In **production mode**:
-  - Same static serving + SPA catch-all, but *without* the HMR injection.
+  - Same behaviour without HMR injection.
   - Run with::
 
         uvicorn railui.backend.server:create_app --factory --host 0.0.0.0 --port 8000
@@ -20,16 +18,16 @@ In **production mode**:
 from __future__ import annotations
 
 import asyncio
+import mimetypes
 import os
 from pathlib import Path
 from typing import AsyncGenerator, List, Optional
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse, JSONResponse
 
 # ---------------------------------------------------------------------------
-# Global SSE broadcast queue — the dev watcher puts messages here
+# SSE broadcast queue — the dev watcher pushes reload events here
 # ---------------------------------------------------------------------------
 _hmr_queues: List[asyncio.Queue] = []
 
@@ -44,30 +42,26 @@ def broadcast_reload() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HMR SSE client script injected into index.html in dev mode
+# HMR client script injected into index.html in dev mode
 # ---------------------------------------------------------------------------
-_HMR_SCRIPT = """
+_HMR_SCRIPT = """\
 <script>
 (function() {
-  var src = new EventSource('/railui-hmr');
-  src.addEventListener('reload', function() {
-    console.log('[RailUI HMR] Reloading…');
+  var es = new EventSource('/railui-hmr');
+  es.addEventListener('reload', function() {
+    console.log('[RailUI HMR] reloading...');
     window.location.reload();
   });
-  src.onerror = function() {
-    setTimeout(function() {
-      window.location.reload();
-    }, 2000);
+  es.onerror = function() {
+    setTimeout(function() { window.location.reload(); }, 2000);
   };
 })();
-</script>
-"""
+</script>"""
 
 
 def _inject_hmr(html: str) -> str:
-    """Inject the HMR script just before </body>."""
     if "</body>" in html:
-        return html.replace("</body>", _HMR_SCRIPT + "</body>", 1)
+        return html.replace("</body>", _HMR_SCRIPT + "\n</body>", 1)
     return html + _HMR_SCRIPT
 
 
@@ -83,7 +77,6 @@ def create_app(
 
     Args:
         dist_dir: Absolute path to the compiled ``dist/`` folder.
-                  Defaults to a ``dist/`` directory next to the caller's ``main.py``.
         dev:      Enable HMR injection and the ``/railui-hmr`` SSE endpoint.
 
     Returns:
@@ -97,6 +90,7 @@ def create_app(
     )
 
     resolved_dist = Path(dist_dir) if dist_dir else Path.cwd() / "dist"
+    index_path = resolved_dist / "index.html"
 
     # ------------------------------------------------------------------
     # SSE hot-reload endpoint (dev only)
@@ -107,7 +101,7 @@ def create_app(
             queue: asyncio.Queue = asyncio.Queue(maxsize=10)
             _hmr_queues.append(queue)
 
-            async def event_generator() -> AsyncGenerator[str, None]:
+            async def _gen() -> AsyncGenerator[str, None]:
                 try:
                     yield "data: connected\n\n"
                     while True:
@@ -115,50 +109,78 @@ def create_app(
                             msg = await asyncio.wait_for(queue.get(), timeout=15)
                             yield f"event: {msg}\ndata: {msg}\n\n"
                         except asyncio.TimeoutError:
-                            # Keep-alive ping
                             yield ": ping\n\n"
                 finally:
-                    _hmr_queues.remove(queue)
+                    if queue in _hmr_queues:
+                        _hmr_queues.remove(queue)
 
             return StreamingResponse(
-                event_generator(),
+                _gen(),
                 media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "X-Accel-Buffering": "no",
-                },
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
 
     # ------------------------------------------------------------------
-    # SPA index.html handler
+    # Server Actions RPC Endpoint
     # ------------------------------------------------------------------
-    index_path = resolved_dist / "index.html"
+    @app.post("/_railui_action/{action_name}")
+    async def handle_server_action(action_name: str, request: Request):
+        from railui.core.actions import get_action_registry
+        
+        registry = get_action_registry()
+        if action_name not in registry:
+            raise HTTPException(status_code=404, detail=f"Server action '{action_name}' not found.")
+            
+        func = registry[action_name]
+        
+        try:
+            # The frontend sends JSON.stringify([arg1, arg2])
+            args = await request.json()
+            if not isinstance(args, list):
+                args = [args]
+                
+            # If the action is async, await it(also using asyncio for backward compat)
+            # pyrefly: ignore [deprecated]
+            if asyncio.iscoroutinefunction(func):
+                result = await func(*args)
+            else:
+                # Run sync functions in thread pool to avoid blocking the event loop
+                result = await asyncio.to_thread(func, *args)
+                
+            return JSONResponse(content=result)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
-    @app.get("/{full_path:path}", response_class=HTMLResponse)
-    async def spa_fallback(full_path: str) -> HTMLResponse:
-        """Serve index.html for all non-static routes (SPA catch-all)."""
-        # Let static files (js, css, assets) pass through; only html routes here
-        if "." in full_path.split("/")[-1]:
-            # Has a file extension — likely a missing static asset
-            from fastapi.responses import Response
-            return Response(status_code=404)
+    # ------------------------------------------------------------------
+    # Universal request handler:
+    #   1. If a real file exists in dist/ → serve it directly.
+    #   2. Otherwise → serve index.html (SPA fallback).
+    # ------------------------------------------------------------------
+    @app.get("/{full_path:path}")
+    async def serve(full_path: str) -> Response:
+        # Root path
+        if not full_path or full_path == "/":
+            candidate = index_path
+        else:
+            # full_path may start with a slash, we want to join it cleanly
+            clean_path = full_path.lstrip("/")
+            candidate = resolved_dist / clean_path
 
+        if candidate.exists() and candidate.is_file():
+            # Serve the real file with correct MIME type
+            mime, _ = mimetypes.guess_type(str(candidate))
+            return FileResponse(str(candidate), media_type=mime or "application/octet-stream")
+
+        # SPA fallback — any "page" route that has no matching file gets index.html
         if not index_path.exists():
-            return HTMLResponse("<h1>Build not found. Run <code>railui build</code>.</h1>", status_code=404)
+            return HTMLResponse(
+                "<h1>Build not found.</h1><p>Run <code>railui build</code> first.</p>",
+                status_code=404,
+            )
 
         html = index_path.read_text(encoding="utf-8")
         if dev:
             html = _inject_hmr(html)
         return HTMLResponse(html)
-
-    # ------------------------------------------------------------------
-    # Static files (js, css, assets) — mounted BEFORE the catch-all
-    # ------------------------------------------------------------------
-    if resolved_dist.exists():
-        app.mount(
-            "/",
-            StaticFiles(directory=str(resolved_dist), html=False),
-            name="static",
-        )
 
     return app

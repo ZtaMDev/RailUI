@@ -35,54 +35,117 @@ watchdog>=4.0
 """
 
 
+_VERCEL_JSON = """{
+  "version": 2,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+"""
+
 def _write_if_missing(path: str, content: str) -> None:
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
-        print(f"  [railui] created {os.path.relpath(path)}")
+        # Use simple ASCII logging since it's just scaffolding
+        print(f"  \033[32mcreated\033[0m {os.path.relpath(path).replace(os.sep, '/')}")
 
 
-def run(project_dir: str) -> int:
-    """
-    Execute a production build.
+import subprocess
+import time
+import shutil
+from .config import RailUIConfig
+from .bundler import run_bundler
 
-    Args:
-        project_dir: Absolute path to the project root (where ``main.py`` lives).
+def _format_size(size: int) -> str:
+    """Format bytes to kB with 2 decimal places."""
+    return f"{size / 1024:.2f} kB"
 
-    Returns:
-        int: Exit code (0 = success, 1 = failure).
-    """
+def run(project_dir: str, config: RailUIConfig) -> int:
+    """Execute a production build and generate deployment files."""
     main_py = os.path.join(project_dir, "main.py")
     if not os.path.exists(main_py):
-        print(f"[railui build] Error: no main.py found in {project_dir}")
+        print(f"\033[31m[railui] Error: no main.py found in {project_dir}\033[0m")
         return 1
 
-    # Ensure the project directory is importable (for layout.py, etc.)
-    if project_dir not in sys.path:
-        sys.path.insert(0, project_dir)
+    print(f"\n\033[36mrailui\033[0m building for production...\n")
+    start_time = time.monotonic()
 
-    print(f"[railui] Building project: {project_dir}")
+    # Determine outdir from config
+    dist_dir = os.path.join(project_dir, config.outdir)
 
-    # Dynamically load and execute main.py so that app.build() runs
-    spec = importlib.util.spec_from_file_location("__railui_main__", main_py)
-    if not spec or not spec.loader:
-        print("[railui build] Error: could not load main.py")
+    # Inject config into the environment
+    env = os.environ.copy()
+    env["RAILUI_OUTDIR"] = dist_dir
+
+    # 1. Run the build in a clean subprocess to capture output
+    result = subprocess.run(
+        [sys.executable, main_py],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        print(f"\033[31mBuild failed:\033[0m")
+        print(result.stderr)
         return 1
 
-    module = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(module)  # type: ignore[union-attr]
-    except SystemExit:
-        pass  # app.build() may call sys.exit — that's fine
-    except Exception as exc:
-        print(f"[railui build] Build failed: {exc}")
-        return 1
+    # 2. Copy public directories to outdir
+    for pdir in config.public_dirs:
+        src = os.path.join(project_dir, pdir)
+        if os.path.isdir(src):
+            for item in os.listdir(src):
+                s = os.path.join(src, item)
+                d = os.path.join(dist_dir, item)
+                if os.path.isdir(s):
+                    shutil.copytree(s, d, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(s, d)
 
-    # Generate deployment artefacts
-    print("[railui] Writing deployment files...")
-    _write_if_missing(os.path.join(project_dir, "railway.toml"), _RAILWAY_TOML)
-    _write_if_missing(os.path.join(project_dir, "Procfile"), _PROCFILE)
-    _write_if_missing(os.path.join(project_dir, "requirements.txt"), _REQUIREMENTS_HINT)
+    # 3. Minify using dars-bundler if enabled
+    if config.bundle:
+        run_bundler(dist_dir)
 
-    print("[railui] Build complete - OK")
+    # 4. Generate deployment artefacts
+    if config.platform == "railway":
+        _write_if_missing(os.path.join(project_dir, "railway.toml"), _RAILWAY_TOML)
+        _write_if_missing(os.path.join(project_dir, "Procfile"), _PROCFILE)
+        _write_if_missing(os.path.join(project_dir, "requirements.txt"), _REQUIREMENTS_HINT)
+    elif config.platform == "vercel":
+        _write_if_missing(os.path.join(project_dir, "vercel.json"), _VERCEL_JSON)
+        # Check for server actions and warn
+        actions_used = False
+        with open(main_py, "r", encoding="utf-8") as f:
+            if "server_action" in f.read():
+                actions_used = True
+        if actions_used:
+            print("\n\033[33m[railui] WARNING: You are deploying to Vercel (static) but your code contains @server_actions. These will NOT work without a Python backend!\033[0m")
+
+    # 5. Print the beautiful summary of generated files
+    dist_dir = os.path.join(project_dir, config.outdir)
+    print(f"\n\033[32mOK\033[0m \033[2mbuild complete in {time.monotonic() - start_time:.2f}s\033[0m\n")
+    
+    if os.path.exists(dist_dir):
+        files = []
+        for root, _, filenames in os.walk(dist_dir):
+            for f in filenames:
+                fp = os.path.join(root, f)
+                rel = os.path.relpath(fp, project_dir)
+                size = os.stat(fp).st_size
+                files.append((rel, size))
+                
+        # Sort by size (largest last) for better visual flow
+        files.sort(key=lambda x: x[1])
+        
+        for rel_path, size in files:
+            color = "\033[36m" if rel_path.endswith(".js") else "\033[35m" if rel_path.endswith(".css") else "\033[2m"
+            # Format: right-aligned size, colored path
+            print(f"  {_format_size(size):>10}  {color}{rel_path.replace(os.sep, '/')}\033[0m")
+            
+    if config.platform == "vercel":
+        print("\n\033[32mReady for deployment! (\033[1mvercel\033[0m)\n")
+    else:
+        print("\n\033[32mReady for deployment! (\033[1mrailway up\033[0m)\n")
     return 0

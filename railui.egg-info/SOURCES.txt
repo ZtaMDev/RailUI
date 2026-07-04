@@ -11,11 +11,14 @@ railui/backend/server.py
 railui/cli/__init__.py
 railui/cli/__main__.py
 railui/cli/build.py
+railui/cli/bundler.py
+railui/cli/config.py
 railui/cli/dev.py
 railui/cli/new.py
 railui/components/advanced.py
 railui/components/base.py
 railui/components/slots.py
+railui/core/actions.py
 railui/core/animations.py
 railui/core/app.py
 railui/core/ast.py

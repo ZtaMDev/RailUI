@@ -15,6 +15,7 @@ Can also be invoked as::
     python -m railui dev
 """
 from __future__ import annotations
+from railui.cli.config import load_config
 
 import argparse
 import os
@@ -59,7 +60,7 @@ def _banner() -> None:
     print(_c("  ██║  ██║██║  ██║██║███████╗╚██████╔╝██║", _CYAN, _BOLD))
     print(_c("  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═╝", _CYAN, _BOLD))
     print()
-    print(_c("  Python-first · Zero-runtime · Fullstack", _DIM))
+    print(_c("  Python-first · Fullstack Web-Framework", _DIM))
     print()
 
 
@@ -116,38 +117,39 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=True,
     )
-    sub = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
     # ---- railui dev -------------------------------------------------------
-    dev_p = sub.add_parser("dev", help="Start the development server with hot reload")
-    dev_p.add_argument("project", nargs="?", default=None,
-                       help="Project root (default: current directory)")
-    dev_p.add_argument("--host", default="127.0.0.1", help="Server host")
-    dev_p.add_argument("--port", type=int, default=5173, help="Server port")
-    dev_p.add_argument("--no-open", action="store_true", help="Do not open the browser")
+    parser_dev = subparsers.add_parser("dev", help="Start the development server")
+    parser_dev.add_argument("project", nargs="?", default=".", help="Project directory (default: current directory)")
+    parser_dev.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
+    parser_dev.add_argument("--port", type=int, default=None, help="Port to bind to (overrides config)")
+    parser_dev.add_argument("--no-open", action="store_true", help="Do not open browser automatically")
+    parser_dev.add_argument("--platform", choices=["railway", "vercel"], default=None, help="Target deployment platform")
 
-    # ---- railui build -----------------------------------------------------
-    build_p = sub.add_parser("build", help="Compile to a production bundle")
-    build_p.add_argument("project", nargs="?", default=None,
-                         help="Project root (default: current directory)")
+    # railui build [project]
+    parser_build = subparsers.add_parser("build", help="Build the project for production")
+    parser_build.add_argument("project", nargs="?", default=".", help="Project directory (default: current directory)")
+    parser_build.add_argument("--outdir", default=None, help="Output directory (overrides config)")
+    parser_build.add_argument("--no-bundle", action="store_true", help="Disable JS/CSS minification via dars-bundler")
+    parser_build.add_argument("--platform", choices=["railway", "vercel"], default=None, help="Target deployment platform")
 
     # ---- railui new -------------------------------------------------------
-    new_p = sub.add_parser("new", help="Scaffold a new RailUI project")
+    new_p = subparsers.add_parser("new", help="Scaffold a new RailUI project")
     new_p.add_argument("name", help="Project name (used as directory name)")
     new_p.add_argument("--dir", default=".", help="Parent directory (default: .)")
 
     args = parser.parse_args()
-
     if args.command == "dev":
         from railui.cli.dev import run
-        project = _resolve_project(args.project)
-        sys.exit(run(project, host=args.host, port=args.port, open_browser=not args.no_open))
-
+        project = _resolve_project(getattr(args, "project", "."))
+        config = load_config(project, args)
+        sys.exit(run(project, host=args.host, config=config))
     elif args.command == "build":
         from railui.cli.build import run
-        project = _resolve_project(args.project)
-        sys.exit(run(project))
-
+        project = _resolve_project(getattr(args, "project", "."))
+        config = load_config(project, args)
+        sys.exit(run(project, config))
     elif args.command == "new":
         from railui.cli.new import run
         sys.exit(run(args.name, base_dir=args.dir))

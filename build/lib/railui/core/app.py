@@ -110,8 +110,17 @@ class App:
                             print(f"Warning: {full_path} has no 'page()' function exported.")
 
     def build(self, out_dir: str = "dist") -> None:
-        """Compile the entire application into an SPA bundle."""
+        """
+        Compile all discovered pages and generate a static HTML/JS bundle.
+        """
         from ..router.builder import build_router_js
+        
+        # Allow CLI config to override out_dir via environment variable
+        env_outdir = os.environ.get("RAILUI_OUTDIR")
+        if env_outdir:
+            out_dir = env_outdir
+            
+        print(f"Building RailUI application into '{out_dir}'...")
         
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)

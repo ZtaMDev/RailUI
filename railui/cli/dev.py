@@ -20,15 +20,16 @@ import time
 import webbrowser
 from pathlib import Path
 from typing import Callable, Optional
+from .config import RailUIConfig
+import shutil
+import subprocess
 
 
 # ---------------------------------------------------------------------------
 # Rebuild helper
 # ---------------------------------------------------------------------------
 
-import subprocess
-
-def _rebuild(main_py: str, project_dir: str) -> bool:
+def _rebuild(main_py: str, project_dir: str, config: RailUIConfig) -> bool:
     """
     Execute ``main.py`` in a subprocess to trigger a fresh build.
     Using a subprocess guarantees we don't hit sys.modules caching issues.
@@ -36,10 +37,15 @@ def _rebuild(main_py: str, project_dir: str) -> bool:
     Returns True on success, False on error.
     """
     try:
+        # Inject config into the environment
+        env = os.environ.copy()
+        env["RAILUI_OUTDIR"] = config.outdir
+
         # Run in subprocess to ensure a completely clean state
         result = subprocess.run(
             [sys.executable, main_py],
             cwd=project_dir,
+            env=env,
             capture_output=True,
             text=True
         )
@@ -48,6 +54,19 @@ def _rebuild(main_py: str, project_dir: str) -> bool:
             print(f"\033[31m\n[railui dev] Build failed:\033[0m")
             print(result.stderr)
             return False
+            
+        # Copy public directories to outdir for dev serving
+        dist_dir = os.path.join(project_dir, config.outdir)
+        for pdir in config.public_dirs:
+            src = os.path.join(project_dir, pdir)
+            if os.path.isdir(src):
+                for item in os.listdir(src):
+                    s = os.path.join(src, item)
+                    d = os.path.join(dist_dir, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(s, d)
             
         return True
     except Exception as exc:
@@ -67,6 +86,7 @@ def _start_watcher(
     watch_dir: str,
     main_py: str,
     project_dir: str,
+    config: RailUIConfig,
     on_rebuilt: Callable[[], None],
 ) -> None:
     """
@@ -91,7 +111,7 @@ def _start_watcher(
             sys.stdout.write(f"\033[36m{ts} [railui]\033[0m \033[33mrebuilding...\033[0m\r")
             sys.stdout.flush()
             
-            ok = _rebuild(main_py, project_dir)
+            ok = _rebuild(main_py, project_dir, config)
             
             # Clear the rebuilding line
             sys.stdout.write("\033[K")
@@ -148,44 +168,44 @@ def _start_watcher(
 # Entry point
 # ---------------------------------------------------------------------------
 
-def run(project_dir: str, host: str = "127.0.0.1", port: int = 5173, open_browser: bool = True) -> int:
+def run(project_dir: str, host: str, config: RailUIConfig) -> int:
     """
-    Start the RailUI development server.
-
-    Args:
-        project_dir: Absolute path to the project root (contains ``main.py``).
-        host: Hostname to bind to.
-        port: Port to listen on (default: 5173 to feel familiar).
-        open_browser: Automatically open the browser on start.
-
-    Returns:
-        int: Exit code.
+    Start the dev server with hot module replacement.
     """
+    import logging
+    
+    port = config.port
+    open_browser = config.open_browser
+    
     main_py = os.path.join(project_dir, "main.py")
-    dist_dir = os.path.join(project_dir, "dist")
+    dist_dir = os.path.join(project_dir, config.outdir)
 
     if not os.path.exists(main_py):
-        print(f"[railui dev] Error: no main.py found in {project_dir}")
+        print(f"\033[31m[railui dev] Error: no main.py found in {project_dir}\033[0m")
         return 1
 
     # ---- Initial build --------------------------------------------------
     print("[railui] Starting development server...")
     print(f"[railui] Building initial bundle...")
-    ok = _rebuild(main_py, project_dir)
+    ok = _rebuild(main_py, project_dir, config)
     if not ok:
-        print("[railui dev] Initial build failed — fix the errors above and try again.")
+        print("\033[31m[railui dev] Initial build failed — fix the errors above and try again.\033[0m")
+
+    # Pass RAILUI_OUTDIR to the server script via env var so it serves from config.outdir
+    os.environ["RAILUI_OUTDIR"] = config.outdir
+    sys.path.insert(0, project_dir)
+    try:
+        from railui.backend.server import create_app, broadcast_reload  # type: ignore
+    except ImportError as e:
+        print(f"\033[31m[railui dev] Server startup failed: {e}\033[0m")
         return 1
-
-    # ---- Import server + broadcast helper --------------------------------
-    from railui.backend.server import create_app, broadcast_reload
-
-    app = create_app(dist_dir=dist_dir, dev=True)
 
     # ---- File watcher → SSE broadcast ------------------------------------
     _start_watcher(
         watch_dir=project_dir,
         main_py=main_py,
         project_dir=project_dir,
+        config=config,
         on_rebuilt=broadcast_reload,
     )
 
@@ -208,7 +228,7 @@ def run(project_dir: str, host: str = "127.0.0.1", port: int = 5173, open_browse
         # Disable access logs for a quiet, Vite-like output
         import logging
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-        uvicorn.run(app, host=host, port=port, log_level="warning", access_log=False)
+        uvicorn.run(create_app(dist_dir=dist_dir, dev=True), host=host, port=port, log_level="warning", access_log=False)
     except KeyboardInterrupt:
         print("\n[railui] Shutting down development server...")
         sys.exit(0)
