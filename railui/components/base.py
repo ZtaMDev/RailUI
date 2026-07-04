@@ -18,7 +18,35 @@ def _filter_none(**kwargs: Any) -> Dict[str, Any]:
 
 
 class Component:
-    """Base class for all RailUI UI elements."""
+    """
+    Base class for all RailUI UI elements.
+
+    Provides shared props like ``class_name``, ``style``, all DOM event handlers,
+    and two-way data binding via ``bind``.
+
+    Args:
+        *children: Nested ``Component``, ``DSLExpr``, or plain ``str`` content.
+        id: HTML ``id`` attribute. Auto-generated when required by reactivity.
+        class_name: Static Tailwind/CSS class string.
+        hover_class: Extra classes added on ``:hover`` (JavaScript-driven).
+        active_class: Extra classes added on ``:active`` (JavaScript-driven).
+        class_list: Dict of ``{class_str: DSLExpr}`` for conditional classes.
+        style: Inline CSS string.
+        bind: A ``SignalGetter`` for two-way reactive binding (input value).
+        on_click: DSL expression executed on the ``click`` event.
+        on_input: DSL expression executed on the ``input`` event.
+        on_change: DSL expression executed on the ``change`` event.
+        on_keydown: DSL expression executed on the ``keydown`` event.
+        on_keyup: DSL expression executed on the ``keyup`` event.
+        on_submit: DSL expression executed on the ``submit`` event.
+        on_focus: DSL expression executed on the ``focus`` event.
+        on_blur: DSL expression executed on the ``blur`` event.
+        on_mouseenter: DSL expression executed on the ``mouseenter`` event.
+        on_mouseleave: DSL expression executed on the ``mouseleave`` event.
+        on_dblclick: DSL expression executed on the ``dblclick`` event.
+        on_scroll: DSL expression executed on the ``scroll`` event.
+        on_load: DSL expression executed on the ``load`` event.
+    """
     def __init__(
         self,
         *children: Union["Component", DSLExpr, str],
@@ -147,7 +175,23 @@ class Component:
 
 
 class Container(Component):
-    """A generic block-level ``<div>`` container."""
+    """
+    A generic ``<div>`` container element.
+
+    Args:
+        *children: Nested components or strings.
+        class_name: CSS/Tailwind class string.
+        on_click: DSL expression for click events.
+        **kwargs: Any other standard HTML attribute.
+
+    Example::
+
+        Container(
+            Text("Hello"),
+            Text("World"),
+            class_name="flex gap-4 p-6",
+        )
+    """
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         id: Optional[str] = None, class_name: Optional[str] = None,
@@ -164,7 +208,21 @@ class Container(Component):
 
 
 class Text(Component):
-    """An inline ``<span>`` text node."""
+    """
+    An inline ``<span>`` text node.
+
+    Can accept a plain string, a signal ref (reactive), or a DSL expression.
+
+    Args:
+        *children: Text content — string literals or reactive ``signal()`` calls.
+        class_name: CSS/Tailwind class string.
+
+    Example::
+
+        Text("Hello World", class_name="text-lg font-bold")
+        Text(user().name, class_name="text-gray-500")  # reactive
+        Text(score() * 2, class_name="font-mono")       # DSL expression
+    """
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         id: Optional[str] = None, class_name: Optional[str] = None,
@@ -179,7 +237,25 @@ class Text(Component):
 
 
 class Button(Component):
-    """A ``<button>`` element."""
+    """
+    A ``<button>`` element.
+
+    Args:
+        *children: Button label — string or nested components.
+        type: HTML button type (``"button"``, ``"submit"``, ``"reset"``).
+        disabled: Disable the button (static bool or reactive DSLExpr string).
+        on_click: DSL expression executed on click.
+        on_dblclick: DSL expression executed on double-click.
+        class_name: CSS/Tailwind class string.
+
+    Example::
+
+        Button(
+            "Save",
+            on_click=setCount(count() + 1),
+            class_name="px-4 py-2 bg-blue-600 text-white rounded",
+        )
+    """
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         id: Optional[str] = None, class_name: Optional[str] = None,
@@ -200,7 +276,29 @@ class Button(Component):
 
 
 class Input(Component):
-    """An ``<input />`` element."""
+    """
+    An ``<input />`` element with optional two-way data binding.
+
+    Args:
+        type: Input type (``"text"``, ``"password"``, ``"email"``, ``"number"``, etc.).
+        placeholder: Placeholder text.
+        value: Static initial value.
+        name: HTML name attribute.
+        disabled: Disable the input.
+        readonly: Make the input read-only.
+        bind: A ``SignalGetter`` to bind the input value reactively (two-way).
+        on_input: DSL expression on each keystroke.
+        on_change: DSL expression when value is committed.
+
+    Example::
+
+        name_input, setName = createSignal("")
+        Input(
+            type="text",
+            placeholder="Enter name...",
+            bind=name_input,
+        )
+    """
     def __init__(
         self,
         id: Optional[str] = None, class_name: Optional[str] = None,
@@ -316,7 +414,22 @@ class Form(Component):
 
 
 class Link(Component):
-    """An ``<a>`` anchor element."""
+    """
+    An ``<a>`` anchor element.
+
+    Args:
+        *children: Link label — string or nested components.
+        href: The URL to navigate to. Supports SPA client-side routing paths.
+        target: HTML target attribute (e.g. ``"_blank"``).
+        rel: Relationship attribute (e.g. ``"noopener noreferrer"``).
+        on_click: DSL expression executed on click (e.g. to prevent default).
+        class_name: CSS/Tailwind class string.
+
+    Example::
+
+        Link("Go to Dashboard", href="/dashboard", class_name="underline text-blue-500")
+        Link("Open Docs", href="https://example.com", target="_blank")
+    """
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         href: str, target: Optional[str] = None, rel: Optional[str] = None,
@@ -363,7 +476,31 @@ class Page(Component):
 
 
 class Show(Component):
-    """Conditional rendering component."""
+    """
+    Conditionally render children based on a reactive signal expression.
+
+    The component wraps its children in a ``<div>`` that is shown or hidden
+    by toggling CSS ``display`` via a reactive JavaScript effect.
+
+    Args:
+        *children: Content to render when the condition is truthy.
+        when: A ``DSLExpr`` (e.g. ``is_logged_in()``) that controls visibility.
+        on_mount: DSL expression executed once when the component first becomes visible.
+        on_update: DSL expression executed each time visibility changes to visible.
+        on_unmount: DSL expression executed when the component becomes hidden.
+        class_name: CSS/Tailwind class string for the wrapper div.
+
+    Example::
+
+        is_admin, _ = createSignal(False)
+
+        Show(
+            Text("Admin Panel"),
+            when=is_admin(),
+            on_mount=log("Admin panel mounted"),
+            on_unmount=log("Admin panel hidden"),
+        )
+    """
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         when: DSLExpr, id: Optional[str] = None, class_name: Optional[str] = None,
@@ -397,7 +534,35 @@ class Show(Component):
 
 
 class Each(Component):
-    """Reactive list rendering component."""
+    """
+    Reactively render a list of items from a signal.
+
+    Automatically re-renders the list whenever the signal changes. Uses an
+    optional ``render_fn`` lambda to template each item. The lambda receives
+    the current ``item`` and its ``index`` as DSL-compatible proxy objects.
+
+    Args:
+        items: A ``SignalGetter`` holding the list to iterate.
+        render_fn: A ``lambda item, index: Component`` that templates each item.
+        on_mount: DSL expression executed once when the list first renders.
+        on_update: DSL expression executed each time items change.
+        on_unmount: DSL expression executed when the list becomes empty.
+        class_name: CSS/Tailwind class string for the wrapper div.
+
+    Example::
+
+        posts, setPosts = createSignal([])
+
+        Each(
+            items=posts,
+            render_fn=lambda post, i: Container(
+                Text(post.title, class_name="font-bold"),
+                Text(post.body, class_name="text-gray-500 text-sm"),
+                class_name="p-4 border rounded mb-2",
+            ),
+            on_update=log("Posts list updated"),
+        )
+    """
     def __init__(
         self, items: DSLExpr, render_fn: Callable[[Any, Any], Union["Component", str]],
         id: Optional[str] = None, class_name: Optional[str] = None,

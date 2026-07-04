@@ -231,7 +231,7 @@ class ItemProxy(DSLExpr):
 
 # --- Console ---
 def log(*args: Any) -> DSLExpr:
-    """console.log(...)"""
+    """Logs text to browser console. part of the JS API"""
     parts = ", ".join(to_dsl(a).to_js() for a in args)
     return RawJS(f"console.log({parts})")
 

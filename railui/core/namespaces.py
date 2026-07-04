@@ -6,9 +6,9 @@ in the RailUI Python-to-JS DSL. Each class mirrors the actual JavaScript API wit
 full type signatures, parameter names and docstrings, enabling IDE autocompletion
 and in-editor documentation without any runtime overhead.
 
-These objects do NOT generate any JavaScript themselves — they act as compile-time
-proxies. When you call a method (e.g. Math.floor(x)), the underlying
-JSNativeNamespace.__getattr__ intercepts it and emits a CallOp AST node.
+These objects act as direct implementations — each class fully mirrors the
+corresponding JavaScript API with typed methods, parameter names and docstrings,
+enabling IDE autocompletion and hover-documentation in editors like VS Code and PyCharm.
 
 Usage::
 
@@ -19,7 +19,7 @@ Usage::
     Text(String(user().age))
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Final
 from .ast import DSLExpr, CallOp, RawJS, to_dsl
 
 
@@ -33,7 +33,7 @@ def _call(name: str, *args: Any) -> DSLExpr:
 # ---------------------------------------------------------------------------
 # Math
 # ---------------------------------------------------------------------------
-class _MathNamespace:
+class MathNamespace:
     """
     Mirror of the JavaScript global ``Math`` object.
 
@@ -336,7 +336,7 @@ class _MathNamespace:
 # ---------------------------------------------------------------------------
 # JSON
 # ---------------------------------------------------------------------------
-class _JSONNamespace:
+class JSONNamespace:
     """
     Mirror of the JavaScript global ``JSON`` object.
 
@@ -391,7 +391,7 @@ class _JSONNamespace:
 # ---------------------------------------------------------------------------
 # Object
 # ---------------------------------------------------------------------------
-class _ObjectNamespace:
+class ObjectNamespace:
     """
     Mirror of the JavaScript global ``Object`` constructor / namespace.
 
@@ -496,7 +496,7 @@ class _ObjectNamespace:
 # ---------------------------------------------------------------------------
 # String  (constructor / static methods)
 # ---------------------------------------------------------------------------
-class _StringNamespace:
+class StringNamespace:
     """
     Mirror of the JavaScript ``String`` constructor.
     
@@ -545,7 +545,7 @@ class _StringNamespace:
 # ---------------------------------------------------------------------------
 # Number  (constructor / static methods)
 # ---------------------------------------------------------------------------
-class _NumberNamespace:
+class NumberNamespace:
     """
     Mirror of the JavaScript ``Number`` constructor.
 
@@ -663,7 +663,7 @@ class _NumberNamespace:
 # ---------------------------------------------------------------------------
 # Boolean (constructor)
 # ---------------------------------------------------------------------------
-class _BooleanNamespace:
+class BooleanNamespace:
     """
     Mirror of the JavaScript ``Boolean`` constructor.
 
@@ -688,7 +688,7 @@ class _BooleanNamespace:
 # ---------------------------------------------------------------------------
 # window
 # ---------------------------------------------------------------------------
-class _WindowNamespace:
+class WindowNamespace:
     """
     Mirror of the JavaScript ``window`` (global browser) object.
 
@@ -774,7 +774,7 @@ class _WindowNamespace:
 # ---------------------------------------------------------------------------
 # document
 # ---------------------------------------------------------------------------
-class _DocumentNamespace:
+class DocumentNamespace:
     """
     Mirror of the JavaScript ``document`` (DOM) object.
 
@@ -866,11 +866,26 @@ class _DocumentNamespace:
 # ---------------------------------------------------------------------------
 # Singleton instances  (these are what get exported to railui.all)
 # ---------------------------------------------------------------------------
-Math = _MathNamespace()
-JSON = _JSONNamespace()
-Object = _ObjectNamespace()
-String = _StringNamespace()
-Number = _NumberNamespace()
-Boolean = _BooleanNamespace()
-window = _WindowNamespace()
-document = _DocumentNamespace()
+Math: Final[MathNamespace] = MathNamespace()
+"""JavaScript ``Math`` global. Provides floor, ceil, random, abs, sqrt, trig, etc."""
+
+JSON: Final[JSONNamespace] = JSONNamespace()
+"""JavaScript ``JSON`` global. Provides stringify and parse."""
+
+Object: Final[ObjectNamespace] = ObjectNamespace()
+"""JavaScript ``Object`` global. Provides keys, values, entries, assign, freeze, etc."""
+
+String: Final[StringNamespace] = StringNamespace()
+"""JavaScript ``String`` constructor. Call as String(val) to cast to string."""
+
+Number: Final[NumberNamespace] = NumberNamespace()
+"""JavaScript ``Number`` constructor. Call as Number(val) to cast to number."""
+
+Boolean: Final[BooleanNamespace] = BooleanNamespace()
+"""JavaScript ``Boolean`` constructor. Call as Boolean(val) to cast to boolean."""
+
+window: Final[WindowNamespace] = WindowNamespace()
+"""JavaScript ``window`` global. Provides alert, setTimeout, scrollTo, requestAnimationFrame, etc."""
+
+document: Final[DocumentNamespace] = DocumentNamespace()
+"""JavaScript ``document`` global. Provides getElementById, querySelector, createElement, etc."""
