@@ -1,9 +1,6 @@
 import os
 import sys
 
-# Add the root directory to path to import railui
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
 from railui.all import *
 from layout import Layout
 

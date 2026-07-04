@@ -55,6 +55,7 @@ from .components.base import (
 )
 from .components.advanced import Suspense, ErrorBoundary, Head
 from .components.slots import Slot, SlotFill
+from .core.actions import server_action, ServerActionCall
 
 __all__ = [
     # Core types
@@ -101,4 +102,7 @@ __all__ = [
     "Show", "Each",
     "Suspense", "ErrorBoundary", "Head",
     "Slot", "SlotFill",
+    
+    # Server Actions
+    "server_action", "ServerActionCall",
 ]

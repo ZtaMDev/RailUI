@@ -54,43 +54,56 @@ class App:
 
     def discover_pages(self, directory: str = "pages") -> None:
         """
-        Scans a directory for .py files and automatically registers them as routes.
-        e.g., pages/index.py -> /
-        pages/dashboard.py -> /dashboard
-        pages/users/[id].py -> /users/:id (dynamic routing marker)
-        
-        Requires each file to export a `page()` function returning a Component.
+        Scan a directory for ``.py`` files and register them as routes.
+
+        Naming conventions:
+          - ``pages/index.py``       -> ``/``
+          - ``pages/dashboard.py``   -> ``/dashboard``
+          - ``pages/blog/index.py``  -> ``/blog``
+          - ``pages/users/[id].py``  -> ``/users/:id`` (dynamic segment)
+
+        Each file must export a ``page()`` function that returns a ``Component``.
+
+        This method also inserts the **parent directory of the pages folder** into
+        ``sys.path`` so that sibling modules (e.g. ``layout.py``) are importable
+        from within page files without any manual ``sys.path`` manipulation.
         """
+        import sys
         import importlib.util
-        
+
         if not os.path.exists(directory):
             print(f"Warning: Pages directory '{directory}' not found.")
             return
+
+        # Make the app root (parent of `pages/`) importable so that sibling
+        # modules like `layout.py` resolve correctly from any working directory.
+        app_root = os.path.abspath(os.path.dirname(directory))
+        if app_root not in sys.path:
+            sys.path.insert(0, app_root)
 
         for root, dirs, files in os.walk(directory):
             for file in files:
                 if file.endswith(".py") and not file.startswith("_"):
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, directory)
-                    
+
                     route_path = rel_path[:-3].replace(os.sep, "/")
-                    
+
                     if route_path == "index":
                         route_path = "/"
                     elif route_path.endswith("/index"):
                         route_path = "/" + route_path[:-6]
                     else:
                         route_path = "/" + route_path
-                        
-                    # Handle Next.js style dynamic segments [id] -> :id
+
+                    # Next.js-style dynamic segments: [id] -> :id
                     route_path = route_path.replace("[", ":").replace("]", "")
-                    
-                    # Load the module dynamically
+
                     spec = importlib.util.spec_from_file_location("dynamic_page", full_path)
                     if spec and spec.loader:
                         module = importlib.util.module_from_spec(spec)
                         spec.loader.exec_module(module)
-                        
+
                         if hasattr(module, "page"):
                             self.routes[route_path] = module.page
                         else:

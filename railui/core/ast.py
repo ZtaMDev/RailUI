@@ -39,8 +39,14 @@ class DSLExpr:
     def __ror__(self, other: Any) -> "BinOp": return BinOp(other, "||", self)
     def __invert__(self) -> "UnaryOp": return UnaryOp("!", self)
 
-    def __eq__(self, other: Any) -> "BinOp": return BinOp(self, "===", other)
-    def __ne__(self, other: Any) -> "BinOp": return BinOp(self, "!==", other)
+    # NOTE: __eq__ and __ne__ intentionally return BinOp (a DSL expression node)
+    # instead of bool. This is the standard pattern in Python DSLs (SQLAlchemy,
+    # Pandas) that overload comparison operators for query/AST building.
+    # __hash__ is set to None because __eq__ is overridden (Python requirement).
+    __hash__ = None  # type: ignore[assignment]
+
+    def __eq__(self, other: object) -> Any: return BinOp(self, "===", other)  # type: ignore[override]
+    def __ne__(self, other: object) -> Any: return BinOp(self, "!==", other)  # type: ignore[override]
     def __lt__(self, other: Any) -> "BinOp": return BinOp(self, "<", other)
     def __le__(self, other: Any) -> "BinOp": return BinOp(self, "<=", other)
     def __gt__(self, other: Any) -> "BinOp": return BinOp(self, ">", other)
