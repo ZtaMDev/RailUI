@@ -9,6 +9,7 @@ def build_router_js(compiled_routes: Dict[str, Dict[str, Any]], not_found_data: 
     js_code = [
         "const $routes = {};",
         "const $routeInit = {};",
+        "const $routeDestroy = {};",
         "const $routeEffects = {};"
     ]
     
@@ -18,9 +19,11 @@ def build_router_js(compiled_routes: Dict[str, Dict[str, Any]], not_found_data: 
         js_code.append(f"$routes['{path}'] = `{safe_html}`;")
         
         init_scripts = "\n".join(data["init"])
+        destroy_scripts = "\n".join(data["destroy"])
         effects_scripts = "\n".join(data["effects"])
         
         js_code.append(f"$routeInit['{path}'] = () => {{ {init_scripts} }};")
+        js_code.append(f"$routeDestroy['{path}'] = () => {{ {destroy_scripts} }};")
         if effects_scripts.strip():
             js_code.append(f"$routeEffects['{path}'] = () => {{ $effects.push(() => {{ {effects_scripts} }}); }};")
         else:
@@ -30,6 +33,7 @@ def build_router_js(compiled_routes: Dict[str, Dict[str, Any]], not_found_data: 
         safe_html = not_found_data["html"].replace("\\", "\\\\").replace("`", "\\`")
         js_code.append(f"const $notFoundHtml = `{safe_html}`;")
         js_code.append(f"const $notFoundInit = () => {{ {''.join(not_found_data['init'])} }};")
+        js_code.append(f"const $notFoundDestroy = () => {{ {''.join(not_found_data['destroy'])} }};")
         effects_scripts = ''.join(not_found_data['effects'])
         if effects_scripts.strip():
             js_code.append(f"const $notFoundEffects = () => {{ $effects.push(() => {{ {effects_scripts} }}); }};")
@@ -38,6 +42,7 @@ def build_router_js(compiled_routes: Dict[str, Dict[str, Any]], not_found_data: 
     else:
         js_code.append("const $notFoundHtml = `<div style='text-align:center;padding:50px;'><h1>404 Not Found</h1><p>The page you are looking for does not exist.</p></div>`;")
         js_code.append("const $notFoundInit = () => {};")
+        js_code.append("const $notFoundDestroy = () => {};")
         js_code.append("const $notFoundEffects = () => {};")
 
     # The History API Engine
@@ -60,6 +65,14 @@ function $navigate(path, replace = false) {{
 }}
 
 function $renderRoute() {{
+    // Run teardown of current route BEFORE replacing DOM
+    if ($currentPath) {{
+        // Strip query params to find the correct route script
+        let oldBase = $currentPath.split('?')[0].split('#')[0];
+        let destroyFn = $routeDestroy[oldBase] || $notFoundDestroy;
+        destroyFn();
+    }}
+
     let path = window.location.pathname;
     {slash_logic}
     $currentPath = path + window.location.search + window.location.hash;

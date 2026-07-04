@@ -367,17 +367,32 @@ class Show(Component):
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         when: DSLExpr, id: Optional[str] = None, class_name: Optional[str] = None,
-        style: Optional[str] = None, **kwargs: Any
+        style: Optional[str] = None, 
+        on_mount: Optional[DSLExpr] = None,
+        on_unmount: Optional[DSLExpr] = None,
+        on_update: Optional[DSLExpr] = None,
+        **kwargs: Any
     ) -> None:
         super().__init__(*children, id=id, class_name=class_name, style=style, **kwargs)
         self.tag_name = "div"
         self._when = when
+        self._on_mount = on_mount
+        self._on_unmount = on_unmount
+        self._on_update = on_update
 
     def render(self) -> str:
         uid: str = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
         self.kwargs["id"] = uid
         cond_js = self._when.to_js() if isinstance(self._when, DSLExpr) else str(self._when)
-        RenderContext.effects.append(f'$show("{uid}", {cond_js});')
+        
+        # Build callbacks object
+        cb_parts = []
+        if self._on_mount: cb_parts.append(f"onMount: () => {{ {self._on_mount.to_js()} }}")
+        if self._on_unmount: cb_parts.append(f"onUnmount: () => {{ {self._on_unmount.to_js()} }}")
+        if self._on_update: cb_parts.append(f"onUpdate: () => {{ {self._on_update.to_js()} }}")
+        callbacks = "{" + ", ".join(cb_parts) + "}"
+        
+        RenderContext.effects.append(f'$show("{uid}", {cond_js}, {callbacks});')
         return super().render()
 
 
@@ -386,11 +401,18 @@ class Each(Component):
     def __init__(
         self, items: DSLExpr, render_fn: Callable[[Any, Any], Union["Component", str]],
         id: Optional[str] = None, class_name: Optional[str] = None,
-        style: Optional[str] = None, **kwargs: Any
+        style: Optional[str] = None, 
+        on_mount: Optional[DSLExpr] = None,
+        on_unmount: Optional[DSLExpr] = None,
+        on_update: Optional[DSLExpr] = None,
+        **kwargs: Any
     ) -> None:
         super().__init__(id=id, class_name=class_name, style=style, **kwargs)
         self._items = items
         self._render_fn = render_fn
+        self._on_mount = on_mount
+        self._on_unmount = on_unmount
+        self._on_update = on_update
 
     def render(self) -> str:
         uid: str = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
@@ -416,6 +438,13 @@ class Each(Component):
 
         safe_html = template_html.replace("\\", "\\\\").replace("`", "\\`")
         items_js = self._items.to_js() if isinstance(self._items, DSLExpr) else str(self._items)
-        effect = f'$renderEach("{uid}", {items_js}, (item, index) => `{safe_html}`);'
+        
+        cb_parts = []
+        if self._on_mount: cb_parts.append(f"onMount: () => {{ {self._on_mount.to_js()} }}")
+        if self._on_unmount: cb_parts.append(f"onUnmount: () => {{ {self._on_unmount.to_js()} }}")
+        if self._on_update: cb_parts.append(f"onUpdate: () => {{ {self._on_update.to_js()} }}")
+        callbacks = "{" + ", ".join(cb_parts) + "}"
+        
+        effect = f'$renderEach("{uid}", {items_js}, (item, index) => `{safe_html}`, {callbacks});'
         RenderContext.effects.append(effect)
         return super().render()

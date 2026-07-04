@@ -29,9 +29,15 @@ from .core.ast import (
     # Clipboard
     copy_to_clipboard,
     # Lifecycle
-    on_mount,
+    on_mount, on_destroy,
     # Sequences / misc
-    runSequence, not_, prevent_default, stop_propagation,
+    runSequence, prevent_default, stop_propagation,
+    ifelse, typeof,
+    # Arrays
+    Array,
+    # JS Namespaces
+    Math, JSON, Object, window, document,
+    String, Number, Boolean,
 )
 from .core.animations import (
     animate,
@@ -76,9 +82,13 @@ __all__ = [
     # Clipboard
     "copy_to_clipboard",
     # Lifecycle
-    "on_mount",
+    "on_mount", "on_destroy",
     # Misc
-    "runSequence", "not_", "prevent_default", "stop_propagation",
+    "runSequence", "prevent_default", "stop_propagation",
+    "ifelse", "typeof",
+    "Array",
+    "Math", "JSON", "Object", "window", "document",
+    "String", "Number", "Boolean",
     # Animations
     "animate",
     "fade_in", "fade_out",

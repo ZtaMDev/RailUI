@@ -20,12 +20,42 @@ class DSLExpr:
     def __sub__(self, other: Any) -> "BinOp": return BinOp(self, "-", other)
     def __mul__(self, other: Any) -> "BinOp": return BinOp(self, "*", other)
     def __truediv__(self, other: Any) -> "BinOp": return BinOp(self, "/", other)
+    def __mod__(self, other: Any) -> "BinOp": return BinOp(self, "%", other)
+    def __pow__(self, other: Any) -> "BinOp": return BinOp(self, "**", other)
+    def __floordiv__(self, other: Any) -> "CallOp": return CallOp("Math.floor", BinOp(self, "/", other))
+
+    def __radd__(self, other: Any) -> "BinOp": return BinOp(other, "+", self)
+    def __rsub__(self, other: Any) -> "BinOp": return BinOp(other, "-", self)
+    def __rmul__(self, other: Any) -> "BinOp": return BinOp(other, "*", self)
+    def __rtruediv__(self, other: Any) -> "BinOp": return BinOp(other, "/", self)
+    def __rmod__(self, other: Any) -> "BinOp": return BinOp(other, "%", self)
+    def __rpow__(self, other: Any) -> "BinOp": return BinOp(other, "**", self)
+    def __rfloordiv__(self, other: Any) -> "CallOp": return CallOp("Math.floor", BinOp(other, "/", self))
+
+    # Bitwise mapped to Logical
+    def __and__(self, other: Any) -> "BinOp": return BinOp(self, "&&", other)
+    def __rand__(self, other: Any) -> "BinOp": return BinOp(other, "&&", self)
+    def __or__(self, other: Any) -> "BinOp": return BinOp(self, "||", other)
+    def __ror__(self, other: Any) -> "BinOp": return BinOp(other, "||", self)
+    def __invert__(self) -> "UnaryOp": return UnaryOp("!", self)
+
     def __eq__(self, other: Any) -> "BinOp": return BinOp(self, "===", other)
     def __ne__(self, other: Any) -> "BinOp": return BinOp(self, "!==", other)
     def __lt__(self, other: Any) -> "BinOp": return BinOp(self, "<", other)
     def __le__(self, other: Any) -> "BinOp": return BinOp(self, "<=", other)
     def __gt__(self, other: Any) -> "BinOp": return BinOp(self, ">", other)
     def __ge__(self, other: Any) -> "BinOp": return BinOp(self, ">=", other)
+
+    def __getattr__(self, name: str) -> "PropertyAccess":
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return PropertyAccess(self, name)
+
+    def __getitem__(self, key: Any) -> "PropertyAccess":
+        return PropertyAccess(self, key, is_index=True)
+        
+    def __call__(self, *args: Any) -> "CallOp":
+        return CallOp(self.to_js(), *args)
 
     def to_js(self) -> str:
         """
@@ -51,12 +81,23 @@ def to_dsl(val: Any) -> DSLExpr:
     return Literal(val)
 
 class Literal(DSLExpr):
-    """Represents a literal JSON-serializable value in the JavaScript AST."""
+    """Represents a literal JSON-serializable value or a compound dict/list containing DSLExpr nodes."""
     def __init__(self, value: Any) -> None:
         self.value = value
         
     def to_js(self) -> str:
-        return json.dumps(self.value)
+        if isinstance(self.value, dict):
+            items = []
+            for k, v in self.value.items():
+                k_js = json.dumps(k)
+                v_js = to_dsl(v).to_js()
+                items.append(f"{k_js}: {v_js}")
+            return "{" + ", ".join(items) + "}"
+        elif isinstance(self.value, list):
+            items = [to_dsl(v).to_js() for v in self.value]
+            return "[" + ", ".join(items) + "]"
+        else:
+            return json.dumps(self.value)
 
 class BinOp(DSLExpr):
     """Represents a binary operation in the JavaScript AST."""
@@ -67,6 +108,15 @@ class BinOp(DSLExpr):
         
     def to_js(self) -> str:
         return f"({self.left.to_js()} {self.op} {self.right.to_js()})"
+
+class UnaryOp(DSLExpr):
+    """Represents a unary operation in the JavaScript AST."""
+    def __init__(self, op: str, operand: Any) -> None:
+        self.op = op
+        self.operand = to_dsl(operand)
+        
+    def to_js(self) -> str:
+        return f"({self.op}{self.operand.to_js()})"
 
 class CallOp(DSLExpr):
     """Represents a function call in the JavaScript AST."""
@@ -103,6 +153,38 @@ class RawJS(DSLExpr):
     def to_js(self) -> str:
         return self.js_code
 
+class MethodCallOp(DSLExpr):
+    """Represents calling a method on a JS object."""
+    def __init__(self, target: Any, func_name: str, *args: Any) -> None:
+        self.target = to_dsl(target)
+        self.func_name = func_name
+        self.args: List[DSLExpr] = [to_dsl(a) for a in args]
+        
+    def to_js(self) -> str:
+        target_js = self.target.to_js()
+        args_str = ", ".join(a.to_js() for a in self.args)
+        return f"{target_js}.{self.func_name}({args_str})"
+
+class PropertyAccess(DSLExpr):
+    """Represents a property or index access on a JS object."""
+    def __init__(self, target: Any, prop: Any, is_index: bool = False) -> None:
+        self.target = to_dsl(target)
+        self.prop = prop if is_index else str(prop)
+        self.is_index = is_index
+
+    def __call__(self, *args: Any) -> MethodCallOp:
+        if self.is_index:
+            raise TypeError("Cannot call an indexed property directly as a method.")
+        return MethodCallOp(self.target, self.prop, *args)
+        
+    def to_js(self) -> str:
+        target_js = self.target.to_js()
+        if self.is_index:
+            prop_js = to_dsl(self.prop).to_js()
+            return f"{target_js}?.[{prop_js}]"
+        return f"{target_js}?.{self.prop}"
+
+
 
 class ItemProxy(DSLExpr):
     """
@@ -133,11 +215,6 @@ class ItemProxy(DSLExpr):
 
     def __init__(self, var_name: str) -> None:
         self._var_name = var_name
-
-    def __getattr__(self, key: str) -> RawJS:
-        if key.startswith("_"):
-            raise AttributeError(key)
-        return RawJS(f"{self._var_name}.{key}")
 
     def __call__(self) -> "ItemProxy":
         """Make the proxy callable so it works where SignalGetters are expected."""
@@ -342,14 +419,29 @@ def on_mount(expr: "DSLExpr") -> None:
     from .context import RenderContext
     RenderContext.init_scripts.append(expr.to_js() + ";")
 
-# --- Sequences ---
+def on_destroy(expr: "DSLExpr") -> None:
+    """
+    Register an expression to run ONCE when navigating away from the current route.
+    Used for cleaning up intervals, event listeners, or other persistent state.
+    """
+    from .context import RenderContext
+    RenderContext.destroy_scripts.append(expr.to_js() + ";")
+
+# --- Sequences and Control Flow ---
 def runSequence(*exprs: "DSLExpr") -> DSLExpr:
     """Run multiple expressions in sequence (comma expression)."""
     return RawJS(", ".join(e.to_js() for e in exprs))
 
-def not_(expr: "DSLExpr") -> DSLExpr:
-    """Logical NOT of a DSLExpr."""
-    return RawJS(f"!({expr.to_js()})")
+def ifelse(condition: Any, true_val: Any, false_val: Any) -> DSLExpr:
+    """Ternary operator: condition ? true_val : false_val"""
+    cond_js = to_dsl(condition).to_js()
+    true_js = to_dsl(true_val).to_js()
+    false_js = to_dsl(false_val).to_js()
+    return RawJS(f"({cond_js} ? {true_js} : {false_js})")
+
+def typeof(expr: Any) -> DSLExpr:
+    """typeof expr"""
+    return RawJS(f"typeof {to_dsl(expr).to_js()}")
 
 # --- Clipboard / Misc ---
 def prevent_default() -> DSLExpr:
@@ -359,3 +451,147 @@ def prevent_default() -> DSLExpr:
 def stop_propagation() -> DSLExpr:
     """event.stopPropagation()"""
     return RawJS("event.stopPropagation()")
+
+# --- JS API Namespaces ---
+class JSNativeNamespace:
+    """
+    A magic namespace class that intercepts Python method calls and translates them 
+    directly into JavaScript method calls in the Abstract Syntax Tree (AST).
+
+    This allows you to write Python code that calls native Web APIs or JS objects 
+    without needing to use `RawJS` or write custom wrappers.
+
+    How it works:
+    -------------
+    When you access a property (e.g., `Math.floor`), this class intercepts the `__getattr__` 
+    call and returns a callable. When you invoke that callable (`Math.floor(x)`), it 
+    generates a `CallOp` AST node: `Math.floor(x)`.
+
+    Examples:
+    ---------
+    ```python
+    from railui.all import Math, JSON, document
+    
+    # Compiles to: Math.floor(Math.random() * 100)
+    random_num = Math.floor(Math.random() * 100)
+    
+    # Compiles to: JSON.stringify(my_signal())
+    json_str = JSON.stringify(my_signal())
+    
+    # Compiles to: document.getElementById('my-id')
+    el = document.getElementById('my-id')
+    ```
+    """
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __getattr__(self, prop: str) -> Any:
+        if prop.startswith("_"):
+            raise AttributeError(prop)
+        
+        # Returns a callable that generates a CallOp
+        def method_wrapper(*args: Any) -> CallOp:
+            return CallOp(f"{self._name}.{prop}", *args)
+        
+        return method_wrapper
+
+from .namespaces import (
+    Math, JSON, Object, String, Number, Boolean, window, document
+)
+
+
+class JSArrayNamespace:
+    """
+    Provides immutable array operations for updating RailUI signals natively.
+
+    RailUI relies on signals (e.g., `setTasks(...)`) to trigger reactivity. 
+    Mutating an array directly using native JS methods like `.push()` or `.splice()` 
+    will not trigger UI updates.
+
+    This namespace provides static helper methods that perform **immutable** array 
+    transformations directly in the JavaScript AST, allowing you to easily update 
+    array signals.
+
+    Examples:
+    ---------
+    ```python
+    tasks, setTasks = createSignal(["Task A", "Task B"])
+
+    # Append: Adds item to the end of the array.
+    # Compiles to JS: setTasks([...(sig_1() || []), "Task C"])
+    Button("Add", on_click=setTasks(Array.append(tasks(), "Task C")))
+
+    # Prepend: Adds item to the beginning of the array.
+    # Compiles to JS: setTasks(["Task C", ...(sig_1() || [])])
+    Button("Prepend", on_click=setTasks(Array.prepend(tasks(), "Task C")))
+
+    # Remove: Filters out the item at the given index.
+    # Compiles to JS: setTasks((sig_1() || []).filter((_, i) => i !== 0))
+    Button("Remove First", on_click=setTasks(Array.remove(tasks(), 0)))
+    ```
+    """
+    @staticmethod
+    def append(arr: Any, item: Any) -> DSLExpr:
+        """
+        Return an AST expression representing the addition of an item to the end of the array.
+        
+        Args:
+            arr (Any): The array expression (e.g., `tasks()`).
+            item (Any): The item to append.
+            
+        Returns:
+            DSLExpr: Immutable append expression (spread syntax).
+        """
+        arr_js = to_dsl(arr).to_js()
+        item_js = to_dsl(item).to_js()
+        return RawJS(f"[...({arr_js} || []), {item_js}]")
+
+    @staticmethod
+    def prepend(arr: Any, item: Any) -> DSLExpr:
+        """
+        Return an AST expression representing the addition of an item to the start of the array.
+        
+        Args:
+            arr (Any): The array expression (e.g., `tasks()`).
+            item (Any): The item to prepend.
+            
+        Returns:
+            DSLExpr: Immutable prepend expression (spread syntax).
+        """
+        arr_js = to_dsl(arr).to_js()
+        item_js = to_dsl(item).to_js()
+        return RawJS(f"[{item_js}, ...({arr_js} || [])]")
+
+    @staticmethod
+    def remove(arr: Any, index: Any) -> DSLExpr:
+        """
+        Return an AST expression representing the removal of an item at the given index.
+        
+        Args:
+            arr (Any): The array expression (e.g., `tasks()`).
+            index (Any): The index to remove.
+            
+        Returns:
+            DSLExpr: Immutable removal expression (using Array.filter).
+        """
+        arr_js = to_dsl(arr).to_js()
+        idx_js = to_dsl(index).to_js()
+        return RawJS(f"({arr_js} || []).filter((_, i) => i !== {idx_js})")
+
+    @staticmethod
+    def concat(arr1: Any, arr2: Any) -> DSLExpr:
+        """
+        Return an AST expression combining two arrays into a new array.
+        
+        Args:
+            arr1 (Any): The first array expression.
+            arr2 (Any): The second array expression.
+            
+        Returns:
+            DSLExpr: Immutable concat expression (spread syntax).
+        """
+        arr1_js = to_dsl(arr1).to_js()
+        arr2_js = to_dsl(arr2).to_js()
+        return RawJS(f"[...({arr1_js} || []), ...({arr2_js} || [])]")
+
+Array = JSArrayNamespace()

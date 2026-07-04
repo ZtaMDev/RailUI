@@ -124,6 +124,7 @@ class App:
                 "html": html,
                 "effects": list(RenderContext.effects),
                 "init": list(RenderContext.init_scripts),
+                "destroy": list(RenderContext.destroy_scripts),
                 "head_styles": list(RenderContext.head_styles),
                 "head_scripts": list(RenderContext.head_scripts),
             }
@@ -136,6 +137,7 @@ class App:
                 "html": html,
                 "effects": list(RenderContext.effects),
                 "init": list(RenderContext.init_scripts),
+                "destroy": list(RenderContext.destroy_scripts),
                 "head_styles": list(RenderContext.head_styles),
                 "head_scripts": list(RenderContext.head_scripts),
             }
