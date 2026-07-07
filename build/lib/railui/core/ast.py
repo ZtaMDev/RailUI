@@ -450,6 +450,10 @@ def typeof(expr: Any) -> DSLExpr:
     return RawJS(f"typeof {to_dsl(expr).to_js()}")
 
 # --- Clipboard / Misc ---
+def event_value() -> DSLExpr:
+    """Returns ``event.target.value`` for use in ``on_input`` handlers."""
+    return RawJS("event.target.value")
+
 def prevent_default() -> DSLExpr:
     """event.preventDefault()"""
     return RawJS("event.preventDefault()")

@@ -46,22 +46,37 @@ class ServerActionCall(DSLExpr):
         """
         Compile to a JS fetch() call.
         Uses POST and JSON.stringify to send arguments to the backend.
-        We return a Promise that resolves to the JSON response.
+        Returns a Promise that resolves to the JSON response.
         """
-        # Convert all arguments to JS strings (they might be DSLExprs like `input_value()`)
         js_args = [to_dsl(arg).to_js() for arg in self.args]
-        
-        # We pack args in a JSON array. We don't support kwargs from the frontend yet, 
-        # as JS doesn't have keyword arguments natively.
         body_js = f"JSON.stringify([{', '.join(js_args)}])"
-        
         url = f"/_railui_action/{self.name}"
-        
         return (
             f"fetch('{url}', {{ method: 'POST', "
             f"headers: {{ 'Content-Type': 'application/json' }}, "
             f"body: {body_js} }}).then(r => r.json())"
         )
+
+    def then(self, callback) -> "DSLExpr":
+        """
+        Chain a .then() handler on the Promise returned by the server action.
+
+        The callback receives a ``RawJS`` proxy (``res``) that supports attribute
+        access for the response object (e.g. ``res.message``, ``res.status``).
+
+        Example::
+
+            save_user(username()).then(lambda res: setStatusMsg(res.message))
+
+        This compiles to::
+
+            fetch(url, {...}).then(r => r.json()).then(res => { setStatusMsg(res.message) })
+        """
+        from .ast import RawJS
+        res_proxy = RawJS("res")
+        callback_js = callback(res_proxy).to_js()
+        js = f"{self.to_js()}.then(res => {{ {callback_js} }})"
+        return RawJS(js)
 
 
 def server_action(func: Callable) -> ServerAction:

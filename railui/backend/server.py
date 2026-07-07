@@ -66,18 +66,45 @@ def _inject_hmr(html: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Import project main.py to register server actions
+# ---------------------------------------------------------------------------
+
+def _import_project_main(project_dir: str) -> None:
+    """Import the project's ``main.py`` so that ``@server_action`` decorators fire."""
+    import importlib.util
+    import sys
+
+    main_py = os.path.join(project_dir, "main.py")
+    if not os.path.isfile(main_py):
+        return  # No main.py — no actions to register
+
+    if project_dir not in sys.path:
+        sys.path.insert(0, project_dir)
+
+    spec = importlib.util.spec_from_file_location("railui_project_main", main_py)
+    if spec and spec.loader:
+        try:
+            spec.loader.exec_module(importlib.util.module_from_spec(spec))
+        except Exception as exc:
+            print(f"\033[33m[railui] Warning: could not import main.py to register server actions: {exc}\033[0m")
+
+
+# ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
 def create_app(
     dist_dir: Optional[str] = None,
     dev: bool = False,
+    project_dir: Optional[str] = None,
 ) -> FastAPI:
     """
     Create and configure the RailUI FastAPI application.
 
     Args:
-        dist_dir: Absolute path to the compiled ``dist/`` folder.
-        dev:      Enable HMR injection and the ``/railui-hmr`` SSE endpoint.
+        dist_dir:    Absolute path to the compiled ``dist/`` folder.
+        dev:         Enable HMR injection and the ``/railui-hmr`` SSE endpoint.
+        project_dir: Project root directory. If provided, ``main.py`` is imported
+                     so that ``@server_action`` decorators are registered.
 
     Returns:
         FastAPI: The configured application instance.
@@ -88,6 +115,10 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+
+    # Import the project's main module so server actions are registered
+    if project_dir:
+        _import_project_main(project_dir)
 
     resolved_dist = Path(dist_dir) if dist_dir else Path.cwd() / "dist"
     index_path = resolved_dist / "index.html"

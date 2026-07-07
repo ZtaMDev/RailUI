@@ -77,6 +77,12 @@ class Component:
         **kwargs: Any
     ) -> None:
         self.tag_name: str = "div"
+        children_kw = kwargs.pop("children", None)
+        if children_kw is not None:
+            if isinstance(children_kw, Component):
+                children = children + (children_kw,)
+            elif isinstance(children_kw, (list, tuple)):
+                children = children + tuple(children_kw)
         self.children = children
         self.kwargs: Dict[str, Any] = _filter_none(
             id=id, class_name=class_name, hover_class=hover_class,
@@ -97,9 +103,13 @@ class Component:
         has_id_in_kwargs = "id" in self.kwargs
 
         has_events = any(k.startswith("on_") for k in self.kwargs)
+        has_reactive_kwargs = any(
+            isinstance(v, DSLExpr) and not k.startswith("on_")
+            for k, v in self.kwargs.items()
+        )
         needs_id = not has_id_in_kwargs and (
             "bind" in self.kwargs or "class_list" in self.kwargs or
-            "hover_class" in self.kwargs or "active_class" in self.kwargs or has_events
+            "hover_class" in self.kwargs or "active_class" in self.kwargs or has_events or has_reactive_kwargs
         )
         if needs_id or has_id_in_kwargs:
             attrs.append(f'id="{uid}"')
@@ -149,6 +159,12 @@ class Component:
                     f'document.getElementById("{uid}").addEventListener("input", function(event) {{ {setter_js} }});'
                 )
                 RenderContext.effects.append(f'document.getElementById("{uid}").value = {v.sid}();')
+            elif isinstance(v, DSLExpr):
+                RenderContext.effects.append(
+                    f'document.getElementById("{uid}").{k} = {v.to_js()};'
+                )
+            elif k == "children":
+                pass
             else:
                 attr_name = k.replace("_", "-") if k.startswith("data_") or k.startswith("aria_") else k
                 attrs.append(f'{attr_name}="{v}"')
@@ -504,7 +520,7 @@ class Show(Component):
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         when: DSLExpr, id: Optional[str] = None, class_name: Optional[str] = None,
-        style: Optional[str] = None, 
+        style: Optional[str] = None, fallback: Optional["Component"] = None,
         on_mount: Optional[DSLExpr] = None,
         on_unmount: Optional[DSLExpr] = None,
         on_update: Optional[DSLExpr] = None,
@@ -513,6 +529,7 @@ class Show(Component):
         super().__init__(*children, id=id, class_name=class_name, style=style, **kwargs)
         self.tag_name = "div"
         self._when = when
+        self._fallback = fallback
         self._on_mount = on_mount
         self._on_unmount = on_unmount
         self._on_update = on_update
@@ -521,6 +538,24 @@ class Show(Component):
         uid: str = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
         self.kwargs["id"] = uid
         cond_js = self._when.to_js() if isinstance(self._when, DSLExpr) else str(self._when)
+        
+        if self._fallback:
+            main_html = ""
+            for c in self.children:
+                main_html += c.render() if isinstance(c, Component) else str(c)
+            fallback_html = self._fallback.render()
+            html = f"""
+            <div id="{uid}-show-main">{main_html}</div>
+            <div id="{uid}-show-fallback">{fallback_html}</div>
+            """
+            RenderContext.effects.append(
+                f"(function() {{ "
+                f"const show = {cond_js}; "
+                f"document.getElementById('{uid}-show-main').style.display = show ? '' : 'none'; "
+                f"document.getElementById('{uid}-show-fallback').style.display = show ? 'none' : ''; "
+                f"}})();"
+            )
+            return html
         
         # Build callbacks object
         cb_parts = []

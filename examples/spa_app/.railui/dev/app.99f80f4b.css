@@ -49,10 +49,14 @@ button { background-color: transparent; background-image: none; cursor: pointer;
 .text-white { color: #ffffff; }
 .font-bold { font-weight: 700; }
 .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+.bg-green-100 { background-color: var(--color-green-100, green-100); }
+.text-green-800 { color: var(--color-green-800, green-800); }
+.rounded-lg { border-radius: 0.5rem; }
+.font-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+.text-sm { font-size: 0.875rem; }
 .border-t { border-top-width: 1px; }
 .mt-auto { margin-top: auto; }
 .text-center { text-align: center; }
-.text-sm { font-size: 0.875rem; }
 .text-3xl { font-size: 1.875rem; }
 .p-10 { padding: 2.5rem; }
 .rounded-2xl { border-radius: 1rem; }
@@ -79,7 +83,6 @@ button { background-color: transparent; background-image: none; cursor: pointer;
 .flex-wrap { flex-wrap: wrap; }
 .bg-pink-500 { background-color: #ec4899; }
 .hover\:bg-pink-600:hover { background-color: #db2777; }
-.rounded-lg { border-radius: 0.5rem; }
 .shadow { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1); }
 .bg-yellow-400 { background-color: #facc15; }
 .hover\:bg-yellow-500:hover { background-color: #eab308; }
@@ -87,7 +90,6 @@ button { background-color: transparent; background-image: none; cursor: pointer;
 .hover\:bg-indigo-700:hover { background-color: #4338ca; }
 .bg-blue-500 { background-color: #3b82f6; }
 .hover\:bg-blue-600:hover { background-color: #2563eb; }
-.font-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
 .p-1 { padding: 0.25rem; }
 .rounded { border-radius: 0.25rem; }
 .mt-4 { margin-top: 1.0rem; }

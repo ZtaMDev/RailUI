@@ -24,7 +24,12 @@ include = ["railui*"]
 exclude = ["examples*", "tests*"]
 
 [tool.setuptools.package-data]
-"railui" = ["js/*.js", "templates/**/*"]
+"railui" = [
+    "js/*.js",
+    "bundler/*",
+    "router/*.py",
+    "templates/**/*",
+]
 
 [tool.pyright]
 pythonVersion = "3.11"

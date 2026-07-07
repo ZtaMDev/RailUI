@@ -31,7 +31,7 @@ from .core.ast import (
     # Lifecycle
     on_mount, on_destroy,
     # Sequences / misc
-    runSequence, prevent_default, stop_propagation,
+    runSequence, prevent_default, stop_propagation, event_value,
     ifelse, typeof,
     # Arrays
     Array,
@@ -85,7 +85,7 @@ __all__ = [
     # Lifecycle
     "on_mount", "on_destroy",
     # Misc
-    "runSequence", "prevent_default", "stop_propagation",
+    "runSequence", "prevent_default", "stop_propagation", "event_value",
     "ifelse", "typeof",
     "Array",
     "Math", "JSON", "Object", "window", "document",

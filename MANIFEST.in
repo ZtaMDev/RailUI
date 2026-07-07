@@ -1,0 +1,7 @@
+include railui/bundler/dars-bundler-windows.exe
+include railui/bundler/dars-bundler-mac
+include railui/bundler/dars-bundler-mac-arm
+include railui/bundler/dars-bundler-linux
+include railui/js/runtime.js
+include railui/js/control_flow.js
+recursive-include railui/templates *

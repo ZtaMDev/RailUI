@@ -33,15 +33,17 @@ def _rebuild(main_py: str, project_dir: str, config: RailUIConfig) -> bool:
     """
     Execute ``main.py`` in a subprocess to trigger a fresh build.
     Using a subprocess guarantees we don't hit sys.modules caching issues.
-    
+
+    In dev mode the output goes to ``.railui/dev/`` so the project dir stays clean.
+
     Returns True on success, False on error.
     """
     try:
-        # Inject config into the environment
-        env = os.environ.copy()
-        env["RAILUI_OUTDIR"] = config.outdir
+        dev_dir = _get_dev_dir(project_dir)
 
-        # Run in subprocess to ensure a completely clean state
+        env = os.environ.copy()
+        env["RAILUI_OUTDIR"] = dev_dir
+
         result = subprocess.run(
             [sys.executable, main_py],
             cwd=project_dir,
@@ -50,24 +52,22 @@ def _rebuild(main_py: str, project_dir: str, config: RailUIConfig) -> bool:
             text=True
         )
         if result.returncode != 0:
-            sys.stdout.write("\033[K")  # Clear the current line
+            sys.stdout.write("\033[K")
             print(f"\033[31m\n[railui dev] Build failed:\033[0m")
             print(result.stderr)
             return False
-            
-        # Copy public directories to outdir for dev serving
-        dist_dir = os.path.join(project_dir, config.outdir)
+
         for pdir in config.public_dirs:
             src = os.path.join(project_dir, pdir)
             if os.path.isdir(src):
                 for item in os.listdir(src):
                     s = os.path.join(src, item)
-                    d = os.path.join(dist_dir, item)
+                    d = os.path.join(dev_dir, item)
                     if os.path.isdir(s):
                         shutil.copytree(s, d, dirs_exist_ok=True)
                     else:
                         shutil.copy2(s, d)
-            
+
         return True
     except Exception as exc:
         sys.stdout.write("\033[K")
@@ -168,6 +168,13 @@ def _start_watcher(
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _get_dev_dir(project_dir: str) -> str:
+    """Return the .railui dev directory, creating it if needed."""
+    dev_dir = os.path.join(project_dir, ".railui", "dev")
+    os.makedirs(dev_dir, exist_ok=True)
+    return dev_dir
+
+
 def run(project_dir: str, host: str, config: RailUIConfig) -> int:
     """
     Start the dev server with hot module replacement.
@@ -178,20 +185,20 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
     open_browser = config.open_browser
     
     main_py = os.path.join(project_dir, "main.py")
-    dist_dir = os.path.join(project_dir, config.outdir)
+    dev_dir = _get_dev_dir(project_dir)
 
     if not os.path.exists(main_py):
         print(f"\033[31m[railui dev] Error: no main.py found in {project_dir}\033[0m")
         return 1
 
-    # ---- Initial build --------------------------------------------------
+    # ---- Initial build into .railui/dev/ --------------------------------
     print("[railui] Starting development server...")
     print(f"[railui] Building initial bundle...")
     ok = _rebuild(main_py, project_dir, config)
     if not ok:
         print("\033[31m[railui dev] Initial build failed — fix the errors above and try again.\033[0m")
 
-    # Pass RAILUI_OUTDIR to the server script via env var so it serves from config.outdir
+    # Pass RAILUI_OUTDIR to the server script via env var
     os.environ["RAILUI_OUTDIR"] = config.outdir
     sys.path.insert(0, project_dir)
     try:
@@ -218,17 +225,14 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
     print(f"  ->  Watching:   {project_dir}\n")
 
     if open_browser:
-        # Delay slightly so the server is ready
         def _open():
             time.sleep(1.2)
             webbrowser.open(url)
         threading.Thread(target=_open, daemon=True).start()
 
     try:
-        # Disable access logs for a quiet, Vite-like output
-        import logging
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-        uvicorn.run(create_app(dist_dir=dist_dir, dev=True), host=host, port=port, log_level="warning", access_log=False)
+        uvicorn.run(create_app(dist_dir=dev_dir, dev=True, project_dir=project_dir), host=host, port=port, log_level="warning", access_log=False)
     except KeyboardInterrupt:
         print("\n[railui] Shutting down development server...")
         sys.exit(0)
