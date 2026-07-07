@@ -17,7 +17,7 @@ def page() -> Component:
         Container(
             Text("Server Actions Demo", class_name="text-4xl font-black text-gray-900 block mb-4"),
             Text("Call Python functions directly from your frontend components.", class_name="text-gray-500 mb-8 block"),
-            #TODO: FIX THIS BECAUSE ITS NOT WORKING, BAD VALUE PROSESSING ADN ALSO THE ACTIONS API ITS BROKEN
+            #TODO: FIX THIS BECAUSE ITS NOT WORKING, BAD VALUE PROSESSING AND ALSO THE ACTIONS API ITS BROKEN
             Container(
                 Input(
                     placeholder="Enter username...", 
