@@ -2,7 +2,7 @@
 
 **Python-first, zero-runtime fullstack web framework.**
 
-Write reactive single-page applications entirely in Python. RailUI compiles your Python DSL directly into vanilla JavaScript/HTML/CSS bundles — no Node.js, no JS framework, no runtime interpreter.
+Write reactive single-page applications entirely in Python. RailUI compiles your Python DSL directly into vanilla JavaScript/HTML/CSS bundles no Node.js, no JS framework, no runtime interpreter.
 
 ```python
 from railui.all import *
