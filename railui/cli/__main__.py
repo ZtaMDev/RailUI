@@ -9,6 +9,7 @@ Usage::
     railui build [project_dir]
     railui new <project-name>
     railui --help
+    railui --version
 
 Can also be invoked as::
 
@@ -20,6 +21,14 @@ from railui.cli.config import load_config
 import argparse
 import os
 import sys
+
+
+# ---------------------------------------------------------------------------
+# Version
+# ---------------------------------------------------------------------------
+def _get_version() -> str:
+    from railui import __version__
+    return __version__
 
 
 # ---------------------------------------------------------------------------
@@ -39,11 +48,10 @@ _RED    = "\033[31m"
 def _c(text: str, *codes: str) -> str:
     """Wrap text in ANSI escape codes (no-op on Windows without ANSI support)."""
     if sys.platform == "win32":
-        # Enable ANSI on Windows 10+
         try:
             import ctypes
-            ctypes.windll.kernel32.SetConsoleMode(  # type: ignore[attr-defined]
-                ctypes.windll.kernel32.GetStdHandle(-11), 7  # type: ignore[attr-defined]
+            ctypes.windll.kernel32.SetConsoleMode(
+                ctypes.windll.kernel32.GetStdHandle(-11), 7
             )
         except Exception:
             pass
@@ -52,16 +60,25 @@ def _c(text: str, *codes: str) -> str:
 
 def _banner() -> None:
     """Print the RailUI ASCII banner."""
-    print()
-    print(_c("  ██████╗  █████╗ ██╗██╗     ██╗   ██╗██╗", _CYAN, _BOLD))
-    print(_c("  ██╔══██╗██╔══██╗██║██║     ██║   ██║██║", _CYAN, _BOLD))
-    print(_c("  ██████╔╝███████║██║██║     ██║   ██║██║", _CYAN, _BOLD))
-    print(_c("  ██╔══██╗██╔══██║██║██║     ██║   ██║██║", _CYAN, _BOLD))
-    print(_c("  ██║  ██║██║  ██║██║███████╗╚██████╔╝██║", _CYAN, _BOLD))
-    print(_c("  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═╝", _CYAN, _BOLD))
-    print()
-    print(_c("  Python-first · Fullstack Web-Framework", _DIM))
-    print()
+    ver = _get_version()
+    lines = [
+        "  ██████╗  █████╗ ██╗██╗     ██╗   ██╗██╗",
+        "  ██╔══██╗██╔══██╗██║██║     ██║   ██║██║",
+        "  ██████╔╝███████║██║██║     ██║   ██║██║",
+        "  ██╔══██╗██╔══██║██║██║     ██║   ██║██║",
+        "  ██║  ██║██║  ██║██║███████╗╚██████╔╝██║",
+        "  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═╝",
+        f"  v{ver}  ·  Python-first · Fullstack Web-Framework",
+    ]
+    try:
+        print()
+        for line in lines:
+            print(_c(line, _CYAN, _BOLD))
+        print()
+    except UnicodeEncodeError:
+        print()
+        print(f"RailUI v{ver}  —  Python-first Fullstack Web-Framework")
+        print()
 
 
 def _print_help() -> None:
@@ -77,6 +94,14 @@ def _print_help() -> None:
     ]
     for cmd, desc in cmds:
         print(f"    {_c(cmd, _GREEN, _BOLD)}    {_c(desc, _DIM)}")
+    print()
+    print(_c("  GLOBAL FLAGS", _BOLD, _WHITE))
+    flags = [
+        ("-h, --help   ", "Show this help message"),
+        ("-v, --version", "Print version and exit"),
+    ]
+    for flag, desc in flags:
+        print(f"    {_c(flag, _YELLOW)}  {_c(desc, _DIM)}")
     print()
     print(_c("  OPTIONS (railui dev)", _BOLD, _WHITE))
     opts = [
@@ -106,6 +131,11 @@ def _resolve_project(path: str | None) -> str:
 
 
 def main() -> None:
+    # Handle --version / -v before argparse
+    if len(sys.argv) == 2 and sys.argv[1] in ("-v", "--version"):
+        print(f"railui v{_get_version()}")
+        sys.exit(0)
+
     # Show the pretty help when invoked with no arguments
     if len(sys.argv) == 1:
         _print_help()
