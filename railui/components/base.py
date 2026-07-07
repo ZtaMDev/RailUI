@@ -628,7 +628,7 @@ class Each(Component):
             item_proxy = ItemProxy("item")
             index_proxy = ItemProxy("index")
             component_tree = self._render_fn(item_proxy, index_proxy)
-            template_html = component_tree.render() if isinstance(component_tree, Component) else str(component_tree)
+            template_html = component_tree.render() if isinstance(component_tree, Component) else component_tree
         finally:
             RenderContext.template_mode = old_mode
             if len(RenderContext.effects) > old_effects_len:

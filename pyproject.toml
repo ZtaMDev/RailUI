@@ -5,15 +5,48 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "railui"
 version = "0.1.0"
-description = "A Python-first, zero-runtime fullstack web framework"
+description = "Python-first, zero-runtime fullstack web framework — compile Python DSL to vanilla JS/HTML/CSS SPAs"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
+authors = [
+    { name = "ZtaMDev", email = "ztadevs@gmail.com" },
+]
+maintainers = [
+    { name = "ZtaMDev", email = "ztadevs@gmail.com" },
+]
+keywords = [
+    "web framework", "spa", "python", "reactive", "frontend",
+    "fullstack", "dsl", "compiler", "signals", "no-javascript",
+    "tailwind", "fastapi", "single-page-application",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: JavaScript",
+    "Framework :: AsyncIO",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Typing :: Typed",
+]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "watchdog>=4.0",
 ]
+optional-dependencies = { dev = [] }
+
+[project.urls]
+homepage = "https://github.com/ZtaMDev/railui"
+repository = "https://github.com/ZtaMDev/railui"
+documentation = "https://github.com/ZtaMDev/railui#readme"
+changelog = "https://github.com/ZtaMDev/railui/releases"
+issues = "https://github.com/ZtaMDev/railui/issues"
 
 [project.scripts]
 railui = "railui.cli.__main__:main"
@@ -32,7 +65,7 @@ exclude = ["examples*", "tests*"]
 ]
 
 [tool.pyright]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 venvPath = "."
 venv = ".venv"
 include = ["railui"]
