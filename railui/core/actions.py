@@ -95,9 +95,7 @@ def server_action(func: Callable) -> ServerAction:
             return {"status": "ok"}
     """
     name = func.__name__
-    if name in _ACTION_REGISTRY:
-        raise ValueError(f"A server action named '{name}' is already registered.")
-    
+    # Register/update the action in the global registry
     _ACTION_REGISTRY[name] = func
     return ServerAction(name, func)
 
@@ -105,3 +103,8 @@ def server_action(func: Callable) -> ServerAction:
 def get_action_registry() -> Dict[str, Callable]:
     """Return the global server action registry."""
     return _ACTION_REGISTRY
+
+
+def clear_action_registry() -> None:
+    """Clear all registered server actions (used during hot reload)."""
+    _ACTION_REGISTRY.clear()

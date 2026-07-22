@@ -4,7 +4,7 @@ RailUI
 A pure-Python UI framework that compiles directly into dependency-free Javascript/HTML SPA bundles.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "DSLExpr", "RawJS",

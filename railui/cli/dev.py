@@ -202,7 +202,7 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
     os.environ["RAILUI_OUTDIR"] = config.outdir
     sys.path.insert(0, project_dir)
     try:
-        from railui.backend.server import create_app, broadcast_reload  # type: ignore
+        from railui.backend.server import create_app, broadcast_reload
     except ImportError as e:
         print(f"\033[31m[railui dev] Server startup failed: {e}\033[0m")
         return 1
@@ -235,6 +235,8 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
         uvicorn.run(create_app(dist_dir=dev_dir, dev=True, project_dir=project_dir), host=host, port=port, log_level="warning", access_log=False)
     except KeyboardInterrupt:
         print("\n[railui] Shutting down development server...")
+        sys.exit(0)
+    except Exception:
         sys.exit(0)
         
     return 0

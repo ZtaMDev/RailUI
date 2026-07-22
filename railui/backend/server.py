@@ -30,10 +30,41 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 # SSE broadcast queue — the dev watcher pushes reload events here
 # ---------------------------------------------------------------------------
 _hmr_queues: List[asyncio.Queue] = []
+_active_project_dir: Optional[str] = None
 
 
-def broadcast_reload() -> None:
-    """Push a reload event to all connected browser clients."""
+def reload_project_actions(project_dir: Optional[str] = None) -> None:
+    """
+    Reload project modules in-process so that modified ``@server_action`` functions
+    are updated dynamically without restarting the server process.
+    """
+    import sys
+    target_dir = project_dir or _active_project_dir
+    if not target_dir or not os.path.isdir(target_dir):
+        return
+
+    proj_path = os.path.abspath(target_dir)
+    to_remove = []
+    for mod_name, mod in list(sys.modules.items()):
+        if mod and hasattr(mod, "__file__") and mod.__file__:
+            try:
+                mod_file = os.path.abspath(mod.__file__)
+                if mod_file.startswith(proj_path):
+                    to_remove.append(mod_name)
+            except Exception:
+                pass
+
+    for mod_name in to_remove:
+        sys.modules.pop(mod_name, None)
+
+    _import_project_main(target_dir)
+
+
+def broadcast_reload(project_dir: Optional[str] = None) -> None:
+    """Push a reload event to all connected browser clients and refresh backend actions."""
+    if project_dir or _active_project_dir:
+        reload_project_actions(project_dir or _active_project_dir)
+
     for q in list(_hmr_queues):
         try:
             q.put_nowait("reload")
@@ -116,8 +147,9 @@ def create_app(
         openapi_url=None,
     )
 
-    # Import the project's main module so server actions are registered
+    global _active_project_dir
     if project_dir:
+        _active_project_dir = project_dir
         _import_project_main(project_dir)
 
     resolved_dist = Path(dist_dir) if dist_dir else Path.cwd() / "dist"
@@ -141,6 +173,8 @@ def create_app(
                             yield f"event: {msg}\ndata: {msg}\n\n"
                         except asyncio.TimeoutError:
                             yield ": ping\n\n"
+                except (asyncio.CancelledError, Exception):
+                    pass
                 finally:
                     if queue in _hmr_queues:
                         _hmr_queues.remove(queue)
@@ -158,6 +192,9 @@ def create_app(
     async def handle_server_action(action_name: str, request: Request):
         from railui.core.actions import get_action_registry
         
+        if dev and project_dir:
+            reload_project_actions(project_dir)
+
         registry = get_action_registry()
         if action_name not in registry:
             raise HTTPException(status_code=404, detail=f"Server action '{action_name}' not found.")
@@ -198,7 +235,14 @@ def create_app(
             candidate = resolved_dist / clean_path
 
         if candidate.exists() and candidate.is_file():
-            # Serve the real file with correct MIME type
+            # If serving index.html directly, inject HMR script in dev mode
+            if candidate == index_path or candidate.name == "index.html":
+                html = candidate.read_text(encoding="utf-8")
+                if dev:
+                    html = _inject_hmr(html)
+                return HTMLResponse(html)
+
+            # Serve other static files (js, css, images) with correct MIME type
             mime, _ = mimetypes.guess_type(str(candidate))
             return FileResponse(str(candidate), media_type=mime or "application/octet-stream")
 
