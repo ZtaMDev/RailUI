@@ -6,7 +6,7 @@ effects when their values change.
 """
 
 from typing import Any, Tuple, List, Dict, Callable, Optional
-from .ast import SignalRef, SetOp, DSLExpr
+from .ast import SignalRef, SetOp, DSLExpr, on_mount
 from .context import SignalContext, RenderContext
 
 _signal_counter: int = 0
@@ -170,47 +170,123 @@ def createStore(initial_values: Dict[str, Any]) -> Store:
     return Store(fields)
 
 
+class UseActionCall(DSLExpr):
+    """
+    AST Node representing a reactive server action call wrapper (hook invocation).
+    This handles setting pending/loading state, tracking output result, and catching errors.
+    """
+    def __init__(self, action_name: str, args: tuple, kwargs: dict, pending_setter: str, result_setter: str, error_setter: str):
+        self.action_name = action_name
+        self.args = args
+        self.kwargs = kwargs
+        self.pending_setter = pending_setter
+        self.result_setter = result_setter
+        self.error_setter = error_setter
+
+    def to_js(self) -> str:
+        from .ast import to_dsl
+        js_args = [to_dsl(arg).to_js() for arg in self.args]
+        body_js = f"JSON.stringify([{', '.join(js_args)}])"
+        url = f"/_railui_action/{self.action_name}"
+        # Build the async IIFE expression
+        js = (
+            f"(async () => {{\n"
+            f"  {self.pending_setter}(true);\n"
+            f"  {self.result_setter}(null);\n"
+            f"  {self.error_setter}(null);\n"
+            f"  try {{\n"
+            f"    const res = await fetch('{url}', {{ method: 'POST', "
+            f"headers: {{ 'Content-Type': 'application/json' }}, "
+            f"body: {body_js} }});\n"
+            f"    if (!res.ok) {{\n"
+            f"      const txt = await res.text();\n"
+            f"      throw new Error(txt || 'Action failed');\n"
+            f"    }}\n"
+            f"    const data = await res.json();\n"
+            f"    if (data && typeof data === 'object' && 'error' in data) {{\n"
+            f"      throw new Error(data.error);\n"
+            f"    }}\n"
+            f"    {self.result_setter}(data);\n"
+            f"    return data;\n"
+            f"  }} catch (e) {{\n"
+            f"    {self.error_setter}(e.message || String(e));\n"
+            f"    throw e;\n"
+            f"  }} finally {{\n"
+            f"    {self.pending_setter}(false);\n"
+            f"  }}\n"
+            f"}})()"
+        )
+        return js
+
+    def then(self, callback: Callable[[Any], DSLExpr]) -> "DSLExpr":
+        from .ast import RawJS
+        res_proxy = RawJS("res")
+        callback_js = callback(res_proxy).to_js()
+        js = f"{self.to_js()}.then(res => {{ {callback_js} }})"
+        return RawJS(js)
+
+
+def useAction(action: Any) -> Tuple[Callable[..., UseActionCall], SignalGetter, SignalGetter, SignalGetter]:
+    """
+    Hook to wrap a server action with reactive pending, result, and error states.
+
+    Returns:
+        Tuple[Callable[..., UseActionCall], SignalGetter, SignalGetter, SignalGetter]:
+        - action_trigger: A callable that returns the UseActionCall AST node.
+        - pending: A boolean signal indicating if the action is executing.
+        - result: A signal holding the response value of the action.
+        - error: A signal holding any error message.
+    """
+    if hasattr(action, "name"):
+        action_name = action.name
+    elif hasattr(action, "__name__"):
+        action_name = action.__name__
+    else:
+        action_name = str(action)
+
+    pending, set_pending = createSignal(False)
+    result, set_result = createSignal(None)
+    error, set_error = createSignal(None)
+
+    def trigger(*args: Any, **kwargs: Any) -> UseActionCall:
+        return UseActionCall(
+            action_name=action_name,
+            args=args,
+            kwargs=kwargs,
+            pending_setter=set_pending.setter_name,
+            result_setter=set_result.setter_name,
+            error_setter=set_error.setter_name
+        )
+
+    return trigger, pending, result, error
+
+
 def useFetch(
-    url: str,
-    on_success: "SignalSetter",
+    url: Any,
+    on_success: Optional["SignalSetter"] = None,
     *,
     loading: Optional["SignalSetter"] = None,
     on_error: Optional[DSLExpr] = None,
     method: str = "GET",
     body: Optional[str] = None,
-) -> None:
+) -> Any:
     """
-    Register an async ``fetch()`` call that runs once on page load and updates
-    reactive signals with the response data.
-
-    The generated JavaScript performs a standard ``fetch`` call inside an async
-    IIFE, parses the response as JSON, and calls the signal setter with the result.
-    An optional ``loading`` setter is toggled before and after the request.
-
-    Args:
-        url (str): The URL to fetch.
-        on_success (SignalSetter): The signal setter to call with the parsed JSON
-            response body (e.g. ``setPosts``).
-        loading (SignalSetter, optional): A boolean signal setter that is set to
-            ``true`` before the request and ``false`` after (in ``finally``).
-        on_error (DSLExpr, optional): A DSL expression executed in the ``catch``
-            block (e.g. ``log("Failed to load")``).  Defaults to
-            ``console.error``.
-        method (str): HTTP method — ``"GET"`` (default), ``"POST"``, etc.
-        body (str, optional): Raw JSON body string for ``POST`` requests.
-
-    Example::
-
-        posts, setPosts = createSignal([])
-        loading, setLoading = createSignal(True)
-
-        useFetch(
-            url="https://jsonplaceholder.typicode.com/posts?_limit=5",
-            on_success=setPosts,
-            loading=setLoading,
-            on_error=log("Failed to load posts"),
-        )
+    Fetch hook supporting both:
+    1. Hook style (returns trigger, pending, result, error and automatically triggers on mount):
+       `fetch_trigger, is_loading, data, error = useFetch(my_action)`
+    2. Side-effect style (returns None, triggers request on load and writes to a signal):
+       `useFetch("https://api.com/data", set_data)`
     """
+    if callable(url) or hasattr(url, "name"):
+        # New hook-style signature
+        trigger, pending, result, error = useAction(url)
+        on_mount(trigger())
+        return trigger, pending, result, error
+
+    # Otherwise, fall back to old signature behaviour
+    if on_success is None:
+        raise ValueError("useFetch requires an on_success callback when fetching from a URL string.")
+
     loading_start = f"{loading.setter_name}(true);" if loading else ""
     loading_end   = f"{loading.setter_name}(false);" if loading else ""
     success_js    = f"{on_success.setter_name}(data);"

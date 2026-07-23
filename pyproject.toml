@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "railui"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python-first, zero-runtime fullstack web framework — compile Python DSL to vanilla JS/HTML/CSS SPAs"
 readme = "README.md"
 requires-python = ">=3.12"

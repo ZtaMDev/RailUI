@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import mimetypes
 import os
+import threading
 from pathlib import Path
 from typing import AsyncGenerator, List, Optional
 
@@ -32,6 +33,22 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 _hmr_queues: List[asyncio.Queue] = []
 _active_project_dir: Optional[str] = None
 
+# Used to signal all SSE generators to exit during server shutdown
+_shutdown_event = threading.Event()
+
+
+def shutdown_all_clients() -> None:
+    """
+    Signal all connected browser SSE clients to disconnect immediately.
+    Call this before or after stopping uvicorn so the event loop can drain cleanly.
+    """
+    _shutdown_event.set()
+    for q in list(_hmr_queues):
+        try:
+            q.put_nowait("close")
+        except Exception:
+            pass
+
 
 def reload_project_actions(project_dir: Optional[str] = None) -> None:
     """
@@ -39,6 +56,7 @@ def reload_project_actions(project_dir: Optional[str] = None) -> None:
     are updated dynamically without restarting the server process.
     """
     import sys
+    import importlib.util
     target_dir = project_dir or _active_project_dir
     if not target_dir or not os.path.isdir(target_dir):
         return
@@ -56,6 +74,16 @@ def reload_project_actions(project_dir: Optional[str] = None) -> None:
 
     for mod_name in to_remove:
         sys.modules.pop(mod_name, None)
+
+    # Re-import backend.py if it exists
+    backend_py = os.path.join(target_dir, "backend.py")
+    if os.path.isfile(backend_py):
+        spec = importlib.util.spec_from_file_location("railui_project_backend", backend_py)
+        if spec and spec.loader:
+            try:
+                spec.loader.exec_module(importlib.util.module_from_spec(spec))
+            except Exception:
+                pass
 
     _import_project_main(target_dir)
 
@@ -140,20 +168,64 @@ def create_app(
     Returns:
         FastAPI: The configured application instance.
     """
-    app = FastAPI(
-        title="RailUI App",
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
-    )
+    import os
+    import sys
+    import importlib.util
+    from railui.backend import RailUI
+
+    # Resolve project directory if not explicitly provided
+    if not project_dir:
+        cwd = os.getcwd()
+        if os.path.exists(os.path.join(cwd, "main.py")) or os.path.exists(os.path.join(cwd, "backend.py")):
+            project_dir = cwd
 
     global _active_project_dir
     if project_dir:
         _active_project_dir = project_dir
+
+    # Reset any existing RailUI instance app reference so fresh runs in dev reload correctly
+    RailUI._instance = None
+
+    app = None
+    if project_dir:
+        backend_py = os.path.join(project_dir, "backend.py")
+        if os.path.isfile(backend_py):
+            if project_dir not in sys.path:
+                sys.path.insert(0, project_dir)
+            # Remove previous module from sys.modules if it is there, to allow reload
+            sys.modules.pop("railui_project_backend", None)
+            
+            spec = importlib.util.spec_from_file_location("railui_project_backend", backend_py)
+            if spec and spec.loader:
+                try:
+                    # Execute the module to register user's custom FastAPI instance and backend server actions
+                    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+                except Exception as exc:
+                    print(f"\033[33m[railui] Warning: could not import backend.py: {exc}\033[0m")
+            
+            # Retrieve app instance from RailUI or backend module
+            mod = sys.modules.get("railui_project_backend")
+            if mod:
+                if RailUI._instance and RailUI._instance.app:
+                    app = RailUI._instance.app
+                elif hasattr(mod, "app") and isinstance(getattr(mod, "app"), FastAPI):
+                    app = getattr(mod, "app")
+
+    if app is None:
+        app = FastAPI(
+            title="RailUI App",
+            docs_url=None,
+            redoc_url=None,
+            openapi_url=None,
+        )
+
+    # Always register server actions from main.py (after backend.py so it can set up DB etc.)
+    if project_dir:
         _import_project_main(project_dir)
 
     resolved_dist = Path(dist_dir) if dist_dir else Path.cwd() / "dist"
     index_path = resolved_dist / "index.html"
+
 
     # ------------------------------------------------------------------
     # SSE hot-reload endpoint (dev only)
@@ -167,11 +239,16 @@ def create_app(
             async def _gen() -> AsyncGenerator[str, None]:
                 try:
                     yield "data: connected\n\n"
-                    while True:
+                    while not _shutdown_event.is_set():
                         try:
-                            msg = await asyncio.wait_for(queue.get(), timeout=15)
+                            # 1-second timeout so Ctrl+C exits within ~1 second
+                            msg = await asyncio.wait_for(queue.get(), timeout=1.0)
+                            if msg == "close":
+                                break
                             yield f"event: {msg}\ndata: {msg}\n\n"
                         except asyncio.TimeoutError:
+                            if _shutdown_event.is_set():
+                                break
                             yield ": ping\n\n"
                 except (asyncio.CancelledError, Exception):
                     pass

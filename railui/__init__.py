@@ -4,7 +4,7 @@ RailUI
 A pure-Python UI framework that compiles directly into dependency-free Javascript/HTML SPA bundles.
 """
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "DSLExpr", "RawJS",
@@ -13,7 +13,7 @@ __all__ = [
     "navigate", "go_back", "go_forward", "reload", "open_url",
     "add_class", "remove_class", "toggle_class",
     "runSequence", "prevent_default", "stop_propagation", "event_value", "ifelse", "typeof",
-    "createSignal", "createEffect", "useComputed", "createStore", "useFetch", "Store",
+    "createSignal", "createEffect", "useComputed", "createStore", "useFetch", "Store", "useAction",
     "App",
     "Component", "Container", "Text", "Button", "Input", "Textarea", "Select", "Option", "Label", "Form", "Link", "Image", "Page", "Show", "Each",
     "Suspense", "ErrorBoundary", "Head",

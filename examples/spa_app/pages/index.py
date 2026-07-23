@@ -7,14 +7,14 @@ def page() -> Component:
         
         # Use the hero slot for a nice welcome banner
         SlotFill("hero", Container(
-            Text("🎉 Welcome to the Future of Python UI!", class_name="text-3xl font-black text-white"),
+            Text("Welcome to the Future of Python UI!", class_name="text-3xl font-black text-white"),
             class_name="w-full bg-gradient-to-r from-blue-600 to-indigo-600 p-6 shadow-lg text-center"
         )),
         
         # These go to the default Unassigned slot (the body)
         Container(
             Text("Welcome to RailUI Named Slots", class_name="text-4xl font-extrabold text-gray-900 mb-4 block"),
-            Text("This app features client-side SPA routing and Svelte-style slot components.", class_name="text-lg text-gray-600 mb-8 block"),
+            Text("This app features client-side SPA routing, server actions and Svelte-style slot components.", class_name="text-lg text-gray-600 mb-8 block"),
             Button("Click me for an alert", on_click=alert("Hello from file-based index!"), class_name="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-md"),
             class_name="flex flex-col items-start"
         ),

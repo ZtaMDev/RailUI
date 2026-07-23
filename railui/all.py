@@ -46,7 +46,7 @@ from .core.animations import (
     spin, bounce, pulse, shake,
     scale_in, scale_out,
 )
-from .core.signal import createSignal, createEffect, useComputed, createStore, useFetch, Store
+from .core.signal import createSignal, createEffect, useComputed, createStore, useFetch, Store, useAction
 from .core.app import App
 from .components.base import (
     Component, Page, Text, Button, Container, Input,
@@ -61,7 +61,7 @@ __all__ = [
     # Core types
     "DSLExpr", "RawJS",
     # Signals & State
-    "createSignal", "createEffect", "useComputed", "createStore", "useFetch", "Store",
+    "createSignal", "createEffect", "useComputed", "createStore", "useFetch", "Store", "useAction",
     # App
     "App",
     # Console

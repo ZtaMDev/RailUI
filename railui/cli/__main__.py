@@ -96,6 +96,7 @@ def _print_help() -> None:
         ("dev     [path]", "Start the dev server with hot reload"),
         ("build   [path]", "Compile to a production bundle"),
         ("preview [path]", "Preview the production build locally"),
+        ("start   [path]", "Run the production server (for Railway, Render, etc.)"),
         ("new     <name>", "Scaffold a new RailUI project"),
     ]
     for cmd, desc in cmds:
@@ -114,6 +115,7 @@ def _print_help() -> None:
         ("dev    ", "--host HOST  --port PORT  --no-open  --platform railway|vercel"),
         ("build  ", "--outdir DIR  --no-bundle  --platform railway|vercel"),
         ("preview", "--host HOST  --port PORT  --no-open  --outdir DIR"),
+        ("start  ", "--host HOST  --port PORT  (reads $PORT env var)"),
         ("new    ", "<name>  --dir PARENT_DIR"),
     ]
     for cmd, desc in opts:
@@ -126,6 +128,7 @@ def _print_help() -> None:
         ("railui dev ./app  ", "Start dev server for a specific path"),
         ("railui build      ", "Production build (current dir)"),
         ("railui preview    ", "Preview production build (current dir)"),
+        ("railui start      ", "Run production server (reads $PORT)"),
     ]
     for ex, desc in examples:
         print(f"    {_c(ex, _MAGENTA)}  {_c('# ' + desc, _DIM)}")
@@ -172,13 +175,19 @@ def main() -> None:
     parser_build.add_argument("--no-bundle", action="store_true", help="Disable JS/CSS minification via dars-bundler")
     parser_build.add_argument("--platform", choices=["railway", "vercel"], default=None, help="Target deployment platform")
 
-    # railui preview [project]
+    # ---- railui preview [project]
     parser_preview = subparsers.add_parser("preview", help="Preview the production build locally")
     parser_preview.add_argument("project", nargs="?", default=".", help="Project directory (default: current directory)")
     parser_preview.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
     parser_preview.add_argument("--port", type=int, default=None, help="Port to bind to (default: 4173)")
     parser_preview.add_argument("--no-open", action="store_true", help="Do not open browser automatically")
     parser_preview.add_argument("--outdir", default=None, help="Output directory to preview")
+
+    # ---- railui start [project]
+    parser_start = subparsers.add_parser("start", help="Run the production server (for Railway, Render, etc.)")
+    parser_start.add_argument("project", nargs="?", default=".", help="Project directory (default: current directory)")
+    parser_start.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
+    parser_start.add_argument("--port", type=int, default=None, help="Port override ($PORT env var takes precedence)")
 
     # ---- railui new -------------------------------------------------------
     new_p = subparsers.add_parser("new", help="Scaffold a new RailUI project")
@@ -204,6 +213,12 @@ def main() -> None:
         if args.port is None and config.port == 5173:
             config.port = 4173
         sys.exit(run(project, host=args.host, config=config))
+    elif args.command == "start":
+        from railui.cli.start import run
+        project = _resolve_project(getattr(args, "project", "."))
+        config = load_config(project, args)
+        host = getattr(args, "host", "0.0.0.0")
+        sys.exit(run(project, host=host, config=config))
     elif args.command == "new":
         from railui.cli.new import run
         sys.exit(run(args.name, base_dir=args.dir))

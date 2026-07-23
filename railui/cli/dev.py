@@ -12,6 +12,7 @@ Starts a FastAPI server that:
 from __future__ import annotations
 
 import asyncio
+import atexit
 import importlib.util
 import os
 import sys
@@ -202,10 +203,14 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
     os.environ["RAILUI_OUTDIR"] = config.outdir
     sys.path.insert(0, project_dir)
     try:
-        from railui.backend.server import create_app, broadcast_reload
+        from railui.backend.server import create_app, broadcast_reload, shutdown_all_clients
     except ImportError as e:
         print(f"\033[31m[railui dev] Server startup failed: {e}\033[0m")
         return 1
+
+    # Register shutdown hook so SSE clients are closed even when uvicorn
+    # handles SIGINT internally (before our KeyboardInterrupt block runs)
+    atexit.register(shutdown_all_clients)
 
     # ---- File watcher → SSE broadcast ------------------------------------
     _start_watcher(
@@ -234,9 +239,11 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
         uvicorn.run(create_app(dist_dir=dev_dir, dev=True, project_dir=project_dir), host=host, port=port, log_level="warning", access_log=False)
     except KeyboardInterrupt:
+        shutdown_all_clients()
         print("\n[railui] Shutting down development server...")
         sys.exit(0)
     except Exception:
+        shutdown_all_clients()
         sys.exit(0)
         
     return 0
