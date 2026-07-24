@@ -116,7 +116,7 @@ def _print_help() -> None:
         ("build  ", "--outdir DIR  --no-bundle  --platform railway|vercel"),
         ("preview", "--host HOST  --port PORT  --no-open  --outdir DIR"),
         ("start  ", "--host HOST  --port PORT  (reads $PORT env var)"),
-        ("new    ", "<name>  --dir PARENT_DIR"),
+        ("new    ", "<name>  --template base-blank|blank  --dir PARENT_DIR"),
     ]
     for cmd, desc in opts:
         print(f"    {_c(cmd, _YELLOW, _BOLD)}  {_c(desc, _DIM)}")
@@ -191,8 +191,9 @@ def main() -> None:
 
     # ---- railui new -------------------------------------------------------
     new_p = subparsers.add_parser("new", help="Scaffold a new RailUI project")
-    new_p.add_argument("name", help="Project name (used as directory name)")
+    new_p.add_argument("name", nargs="?", default=None, help="Project name (used as directory name)")
     new_p.add_argument("--dir", default=".", help="Parent directory (default: .)")
+    new_p.add_argument("--template", choices=["base-blank", "blank"], default=None, help="Template to use (base-blank or blank)")
 
     args = parser.parse_args()
     if args.command == "dev":
@@ -221,7 +222,7 @@ def main() -> None:
         sys.exit(run(project, host=host, config=config))
     elif args.command == "new":
         from railui.cli.new import run
-        sys.exit(run(args.name, base_dir=args.dir))
+        sys.exit(run(args.name, base_dir=args.dir, template=getattr(args, "template", None)))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,198 @@
+[metadata]
+version = "1.0"
+created_at = ""
+created_by = "pydepm"
+python_version = "3.14"
+pyproject_hash = "e1baa10e86a22ebe17aaeaa3f2d6c00607fc72b830bb3f380b84d8e7dfc605cd"
+
+[dependencies.annotated-doc]
+version = "0.0.4"
+specifier = "==0.0.4"
+
+[dependencies.annotated-types]
+version = "0.7.0"
+specifier = "==0.7.0"
+
+[dependencies.anyio]
+version = "4.14.1"
+specifier = "==4.14.1"
+
+[dependencies.certifi]
+version = "2026.7.22"
+specifier = "==2026.7.22"
+
+[dependencies.charset-normalizer]
+version = "3.4.9"
+specifier = "==3.4.9"
+
+[dependencies.click]
+version = "8.4.2"
+specifier = "==8.4.2"
+
+[dependencies.colorama]
+version = "0.4.6"
+specifier = "==0.4.6"
+
+[dependencies.docutils]
+version = "0.23"
+specifier = "==0.23"
+
+[dependencies.e]
+version = "1.4.5"
+specifier = "==1.4.5"
+
+[dependencies.fastapi]
+version = "0.139.2"
+specifier = "==0.139.2"
+
+[dependencies.h11]
+version = "0.16.0"
+specifier = "==0.16.0"
+
+[dependencies.httptools]
+version = "0.8.0"
+specifier = "==0.8.0"
+
+[dependencies.id]
+version = "1.6.1"
+specifier = "==1.6.1"
+
+[dependencies.idna]
+version = "3.18"
+specifier = "==3.18"
+
+[dependencies."jaraco.classes"]
+version = "3.4.0"
+specifier = "==3.4.0"
+
+[dependencies."jaraco.context"]
+version = "6.1.2"
+specifier = "==6.1.2"
+
+[dependencies."jaraco.functools"]
+version = "4.6.0"
+specifier = "==4.6.0"
+
+[dependencies.keyring]
+version = "25.7.0"
+specifier = "==25.7.0"
+
+[dependencies.markdown-it-py]
+version = "4.2.0"
+specifier = "==4.2.0"
+
+[dependencies.mdurl]
+version = "0.1.2"
+specifier = "==0.1.2"
+
+[dependencies.more-itertools]
+version = "11.1.0"
+specifier = "==11.1.0"
+
+[dependencies.nh3]
+version = "0.3.6"
+specifier = "==0.3.6"
+
+[dependencies.packaging]
+version = "26.2"
+specifier = "==26.2"
+
+[dependencies.pip]
+version = "26.1.2"
+specifier = "==26.1.2"
+
+[dependencies.prompt-toolkit]
+version = "3.0.52"
+specifier = "==3.0.52"
+
+[dependencies.pydantic]
+version = "2.13.4"
+specifier = "==2.13.4"
+
+[dependencies.pydantic-core]
+version = "2.46.4"
+specifier = "==2.46.4"
+
+[dependencies.pygments]
+version = "2.20.0"
+specifier = "==2.20.0"
+
+[dependencies.python-dotenv]
+version = "1.2.2"
+specifier = "==1.2.2"
+
+[dependencies.pywin32-ctypes]
+version = "0.2.3"
+specifier = "==0.2.3"
+
+[dependencies.pyyaml]
+version = "6.0.3"
+specifier = "==6.0.3"
+
+[dependencies.questionary]
+version = "2.1.1"
+specifier = "==2.1.1"
+
+[dependencies.railui]
+version = "0.1.0"
+specifier = "==0.1.0"
+
+[dependencies.readme-renderer]
+version = "45.0"
+specifier = "==45.0"
+
+[dependencies.requests]
+version = "2.34.2"
+specifier = "==2.34.2"
+
+[dependencies.requests-toolbelt]
+version = "1.0.0"
+specifier = "==1.0.0"
+
+[dependencies.rfc3986]
+version = "2.0.0"
+specifier = "==2.0.0"
+
+[dependencies.rich]
+version = "15.0.0"
+specifier = "==15.0.0"
+
+[dependencies.starlette]
+version = "1.3.1"
+specifier = "==1.3.1"
+
+[dependencies.twine]
+version = "6.2.0"
+specifier = "==6.2.0"
+
+[dependencies.typing-extensions]
+version = "4.16.0"
+specifier = "==4.16.0"
+
+[dependencies.typing-inspection]
+version = "0.4.2"
+specifier = "==0.4.2"
+
+[dependencies.urllib3]
+version = "2.7.0"
+specifier = "==2.7.0"
+
+[dependencies.uvicorn]
+version = "0.51.0"
+specifier = "==0.51.0"
+
+[dependencies.watchdog]
+version = "6.0.0"
+specifier = "==6.0.0"
+
+[dependencies.watchfiles]
+version = "1.2.0"
+specifier = "==1.2.0"
+
+[dependencies.wcwidth]
+version = "0.8.2"
+specifier = "==0.8.2"
+
+[dependencies.websockets]
+version = "16.0"
+specifier = "==16.0"

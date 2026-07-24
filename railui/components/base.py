@@ -520,7 +520,7 @@ class Show(Component):
     def __init__(
         self, *children: Union["Component", DSLExpr, str],
         when: DSLExpr, id: Optional[str] = None, class_name: Optional[str] = None,
-        style: Optional[str] = None, fallback: Optional["Component"] = None,
+        style: Optional[str] = None, fallback: Optional[Union["Component", str]] = None,
         on_mount: Optional[DSLExpr] = None,
         on_unmount: Optional[DSLExpr] = None,
         on_update: Optional[DSLExpr] = None,
@@ -543,7 +543,7 @@ class Show(Component):
             main_html = ""
             for c in self.children:
                 main_html += c.render() if isinstance(c, Component) else str(c)
-            fallback_html = self._fallback.render()
+            fallback_html = self._fallback.render() if isinstance(self._fallback, Component) else self._fallback
             html = f"""
             <div id="{uid}-show-main">{main_html}</div>
             <div id="{uid}-show-fallback">{fallback_html}</div>
