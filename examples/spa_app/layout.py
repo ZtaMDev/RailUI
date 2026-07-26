@@ -9,7 +9,8 @@ def Navbar() -> Component:
                 Link("Counter", href="/counter", class_name="text-gray-600 hover:text-purple-600 font-medium transition"),
                 Link("Dashboard", href="/dashboard", class_name="text-gray-600 hover:text-purple-600 font-medium transition"),
                 Link("Profile", href="/profile", class_name="text-gray-600 hover:text-purple-600 font-medium transition"),
-                Link("Actions Demo", href="/actions_demo", class_name="text-gray-600 hover:text-purple-600 font-medium transition"),
+                Link("Actions", href="/actions_demo", class_name="text-gray-600 hover:text-purple-600 font-medium transition"),
+                Link("Elements", href="/elements_demo", class_name="text-gray-600 hover:text-purple-600 font-medium transition"),
                 Link("Invalid", href="/nowhere", class_name="text-gray-400 hover:text-red-500 font-medium transition"),
                 class_name="flex flex-row items-center gap-6"
             ),

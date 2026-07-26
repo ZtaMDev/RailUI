@@ -40,11 +40,12 @@ from .core.ast import (
     String, Number, Boolean,
 )
 from .core.animations import (
-    animate,
+    animate, transition,
     fade_in, fade_out,
     slide_in_left, slide_in_right, slide_in_up, slide_out_down,
     spin, bounce, pulse, shake,
     scale_in, scale_out,
+    flip_in, highlight,
 )
 from .core.signal import createSignal, createEffect, useComputed, createStore, useFetch, Store, useAction
 from .core.app import App
@@ -55,6 +56,26 @@ from .components.base import (
 )
 from .components.advanced import Suspense, ErrorBoundary, Head
 from .components.slots import Slot, SlotFill
+from .components.elements import (
+    # Typography
+    Heading, H1, H2, H3, H4, H5, H6,
+    Paragraph, Strong, Em, Small, Mark, Del, Ins, Sub, Sup,
+    Code, Pre, Blockquote, Abbr, Cite, Hr, Br, Span,
+    # Media
+    Img, Video, Audio, Source, Picture, Figure, Figcaption, Canvas, Iframe,
+    # Lists
+    Ul, Ol, Li, Dl, Dt, Dd,
+    # Tables
+    Table, Caption, Colgroup, Col, Thead, Tbody, Tfoot, Tr, Th, Td,
+    # Semantic layout
+    Header, Footer, Nav, Section, Article, Aside, Main, Div,
+    # Interactive
+    Details, Summary, Dialog, Progress, Meter,
+    # Forms
+    Fieldset, Legend, Datalist, Output,
+    # Utility
+    Fragment, Badge, Avatar, Divider, Tooltip,
+)
 from .core.actions import server_action, ServerActionCall
 
 __all__ = [
@@ -91,11 +112,12 @@ __all__ = [
     "Math", "JSON", "Object", "window", "document",
     "String", "Number", "Boolean",
     # Animations
-    "animate",
+    "animate", "transition",
     "fade_in", "fade_out",
     "slide_in_left", "slide_in_right", "slide_in_up", "slide_out_down",
     "spin", "bounce", "pulse", "shake",
     "scale_in", "scale_out",
+    "flip_in", "highlight",
     # Components
     "Component", "Page", "Text", "Button", "Container", "Input",
     "Textarea", "Select", "Option", "Label", "Form", "Link", "Image",
@@ -105,4 +127,32 @@ __all__ = [
     
     # Server Actions
     "server_action", "ServerActionCall",
+
+    # Extended HTML elements — Typography
+    "Heading", "H1", "H2", "H3", "H4", "H5", "H6",
+    "Paragraph", "Strong", "Em", "Small", "Mark", "Del", "Ins", "Sub", "Sup",
+    "Code", "Pre", "Blockquote", "Abbr", "Cite", "Hr", "Br", "Span",
+
+    # Extended HTML elements — Media
+    "Img", "Video", "Audio", "Source", "Picture", "Figure", "Figcaption",
+    "Canvas", "Iframe",
+
+    # Extended HTML elements — Lists
+    "Ul", "Ol", "Li", "Dl", "Dt", "Dd",
+
+    # Extended HTML elements — Tables
+    "Table", "Caption", "Colgroup", "Col",
+    "Thead", "Tbody", "Tfoot", "Tr", "Th", "Td",
+
+    # Extended HTML elements — Semantic Layout
+    "Header", "Footer", "Nav", "Section", "Article", "Aside", "Main", "Div",
+
+    # Extended HTML elements — Interactive
+    "Details", "Summary", "Dialog", "Progress", "Meter",
+
+    # Extended HTML elements — Forms
+    "Fieldset", "Legend", "Datalist", "Output",
+
+    # Utility / Composite
+    "Fragment", "Badge", "Avatar", "Divider", "Tooltip",
 ]

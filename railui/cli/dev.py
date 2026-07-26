@@ -235,15 +235,27 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
             webbrowser.open(url)
         threading.Thread(target=_open, daemon=True).start()
 
+    def _force_shutdown():
+        shutdown_all_clients()
+        print("\n\033[36m[railui]\033[0m \033[33mStopping preview...\033[0m")
+        sys.stdout.flush()
+
     try:
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-        uvicorn.run(create_app(dist_dir=dev_dir, dev=True, project_dir=project_dir), host=host, port=port, log_level="warning", access_log=False)
+        config_obj = uvicorn.Config(
+            create_app(dist_dir=dev_dir, dev=True, project_dir=project_dir),
+            host=host,
+            port=port,
+            log_level="warning",
+            access_log=False,
+        )
+        server = uvicorn.Server(config_obj)
+        server.run()
     except KeyboardInterrupt:
-        shutdown_all_clients()
-        print("\n[railui] Shutting down development server...")
-        sys.exit(0)
+        _force_shutdown()
+        os._exit(0)
     except Exception:
-        shutdown_all_clients()
-        sys.exit(0)
-        
+        _force_shutdown()
+        os._exit(0)
+
     return 0
