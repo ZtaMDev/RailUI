@@ -6,3 +6,4 @@ build/
 *.egg-info/
 .venv/
 __pycache__/
+VERSIONS.md

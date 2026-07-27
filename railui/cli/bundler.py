@@ -54,13 +54,17 @@ def run_bundler(output_dir: str) -> bool:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
         )
         if p.stdout is not None:
             for line in iter(p.stdout.readline, ''):
                 line = line.strip()
                 if line:
-                    print(f"  \033[2m{line}\033[0m")
+                    # Safely print on Windows terminals that don't support emojis
+                    safe_line = line.encode(sys.stdout.encoding or 'utf-8', errors='replace').decode(sys.stdout.encoding or 'utf-8')
+                    print(f"  \033[2m{safe_line}\033[0m")
         p.wait()
         return p.returncode == 0
     except Exception as e:

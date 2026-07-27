@@ -290,10 +290,39 @@ Suspense(
 )
 ```
 
-### `createEffect`
+### `useComputed` (Derived State)
 
 ```python
+count, setCount = createSignal(1)
+double_count = useComputed(lambda: count() * 2)
+
+Text(double_count()) # Automatically updates when count changes
+```
+
+### `createEffect` (Side Effects)
+
+```python
+count, setCount = createSignal(0)
 createEffect(log("count changed to: ", count()))
+```
+
+### `useAction` (Server Action Hook)
+
+Provides reactive loading, result, and error states for a server action. Use `initial_value` to prevent JS TypeErrors when accessing nested properties of the result before the action has completed (since it defaults to `null`).
+
+```python
+@server_action
+def fetch_user(user_id: int):
+    return {"name": "Alice", "role": "admin"}
+
+def user_profile():
+    # Provide an initial_value so result().name doesn't throw a JS TypeError on mount
+    get_user, loading, result, error = useAction(fetch_user, initial_value={"name": "", "role": ""})
+    
+    return Container(
+        Button("Load", on_click=get_user(1)),
+        Show(Text(result().name), when=~loading()),
+    )
 ```
 
 ---

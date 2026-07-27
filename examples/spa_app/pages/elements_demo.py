@@ -85,9 +85,9 @@ def page() -> Component:
     ])
 
     # ── useAction hooks ───────────────────────────────────────────────────────
-    run_echo,    echo_pending,   echo_result,   echo_error   = useAction(echo_message)
-    run_table,   table_pending,  table_result,  table_error  = useAction(generate_table)
-    run_palette, pal_pending,    pal_result,    pal_error    = useAction(get_color_palette)
+    run_echo,    echo_pending,   echo_result,   echo_error   = useAction(echo_message, initial_value={"output": ""})
+    run_table,   table_pending,  table_result,  table_error  = useAction(generate_table, initial_value={"table": []})
+    run_palette, pal_pending,    pal_result,    pal_error    = useAction(get_color_palette, initial_value={"colors": [], "theme": ""})
 
     # ── Helper: section wrapper ───────────────────────────────────────────────
     def Section(title: str, *children, badge: str = "") -> Component:
@@ -811,30 +811,5 @@ def page() -> Component:
                 class_name="",
             ),
         ),
-        # ── 16. COLOUR PALETTE ───────────────────────────────────────────────
-        Show(
-            Container(
-                H3("Generated Palette", class_name="text-lg font-bold text-gray-800 mb-3"),
-                Container(
-                    Each(
-                        items=pal_result().colors,
-                        render_fn=lambda color, i: Tooltip(
-                            Container(
-                                id=f"swatch-{i}",
-                                style=f"background:${{color}}",
-                                class_name="w-12 h-12 rounded-xl shadow-md cursor-pointer transition hover:scale-110",
-                                on_click=transition(f"swatch-{i}",
-                                                    {"transform": "scale(1.2)"},
-                                                    duration=200),
-                            ),
-                            text=color,
-                        ),
-                        class_name="flex gap-3 flex-wrap",
-                    ),
-                    class_name="",
-                ),
-                class_name="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6",
-            ),
-            when=pal_result(),
-        ),
+
     )

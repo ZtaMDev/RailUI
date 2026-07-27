@@ -226,7 +226,7 @@ class UseActionCall(DSLExpr):
         return RawJS(js)
 
 
-def useAction(action: Any) -> Tuple[Callable[..., UseActionCall], SignalGetter, SignalGetter, SignalGetter]:
+def useAction(action: Any, initial_value: Any = None) -> Tuple[Callable[..., UseActionCall], SignalGetter, SignalGetter, SignalGetter]:
     """
     Hook to wrap a server action with reactive pending, result, and error states.
 
@@ -234,7 +234,7 @@ def useAction(action: Any) -> Tuple[Callable[..., UseActionCall], SignalGetter, 
         Tuple[Callable[..., UseActionCall], SignalGetter, SignalGetter, SignalGetter]:
         - action_trigger: A callable that returns the UseActionCall AST node.
         - pending: A boolean signal indicating if the action is executing.
-        - result: A signal holding the response value of the action.
+        - result: A signal holding the response value of the action (initialized to initial_value).
         - error: A signal holding any error message.
     """
     if hasattr(action, "name"):
@@ -245,7 +245,7 @@ def useAction(action: Any) -> Tuple[Callable[..., UseActionCall], SignalGetter, 
         action_name = str(action)
 
     pending, set_pending = createSignal(False)
-    result, set_result = createSignal(None)
+    result, set_result = createSignal(initial_value)
     error, set_error = createSignal(None)
 
     def trigger(*args: Any, **kwargs: Any) -> UseActionCall:

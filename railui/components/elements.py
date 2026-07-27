@@ -1377,10 +1377,18 @@ class Tooltip(Component):
         "right":  "left-full top-1/2 -translate-y-1/2 ml-2",
     }
 
+    # Maps position names to CSS style strings for the tooltip bubble
+    _POS_STYLE = {
+        "top":    "bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.5rem;",
+        "bottom": "top: 100%; left: 50%; transform: translateX(-50%); margin-top: 0.5rem;",
+        "left":   "right: 100%; top: 50%; transform: translateY(-50%); margin-right: 0.5rem;",
+        "right":  "left: 100%; top: 50%; transform: translateY(-50%); margin-left: 0.5rem;",
+    }
+
     def __init__(
         self,
         *children: Union[Component, DSLExpr, str],
-        text: str,
+        text: Union[str, DSLExpr],
         position: str = "top",
         class_name: Optional[str] = None,
         **kwargs: Any,
@@ -1388,26 +1396,33 @@ class Tooltip(Component):
         self._tip_text = text
         self._tip_pos = position
         self._custom_cls = class_name
-        super().__init__(*children, class_name=class_name, **kwargs)
+        # Don't forward class_name to super so it doesn't pollute the wrapper's class attr
+        super().__init__(*children, **kwargs)
         self.tag_name = "div"
 
     def render(self) -> str:
         from .base import Component as BaseComp
+        from ..core.css import register_classes
         inner_html = ""
         for c in self.children:
             inner_html += c.render() if isinstance(c, BaseComp) else str(c)
 
-        pos_cls = self._POS.get(self._tip_pos, self._POS["top"])
-        wrapper_cls = "relative inline-block group"
+        # The static .railui-tooltip CSS rules are baked into build_css() so no
+        # dynamic registration is needed here — just apply the class names.
+        pos_style = self._POS_STYLE.get(self._tip_pos, self._POS_STYLE["top"])
+        wrapper_cls = "railui-tooltip"
         if self._custom_cls:
             wrapper_cls += f" {self._custom_cls}"
+            register_classes(self._custom_cls)
+
+        tip_text = self._tip_text if isinstance(self._tip_text, str) else str(self._tip_text)
 
         return (
             f'<div class="{wrapper_cls}">'
             f'{inner_html}'
-            f'<div class="pointer-events-none absolute {pos_cls} z-50 hidden group-hover:block '
-            f'bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-lg">'
-            f'{self._tip_text}'
+            f'<div class="railui-tooltip-bubble" style="{pos_style}">'
+            f'{tip_text}'
             f'</div>'
             f'</div>'
         )
+

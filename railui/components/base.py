@@ -6,11 +6,12 @@ All components provide type hints for their standard HTML properties and events
 to enable rich IDE autocomplete.
 """
 
+import re
 import uuid
 from typing import Any, Callable, Dict, Optional, Union
 from ..core.ast import DSLExpr, to_dsl
 from ..core.context import RenderContext
-from ..core.css import register_classes, register_hover_for_element, register_active_for_element
+from ..core.css import register_classes, register_hover_for_element, register_active_for_element, register_pseudo_for_element
 
 
 def _filter_none(**kwargs: Any) -> Dict[str, Any]:
@@ -99,8 +100,18 @@ class Component:
 
     def render(self) -> str:
         attrs = []
-        uid: str = self.kwargs.get("id", f"el_{uuid.uuid4().hex[:8]}")
+        raw_id = self.kwargs.get("id", None)
         has_id_in_kwargs = "id" in self.kwargs
+
+        # If id= is a DSL expression (reactive id), generate a stable static uid
+        # for CSS rule registration, but still emit the id attribute normally.
+        if isinstance(raw_id, DSLExpr):
+            uid: str = f"el_{uuid.uuid4().hex[:8]}"
+        elif raw_id is not None:
+            # Sanitize to a valid CSS identifier — strip angle brackets, spaces, etc.
+            uid = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(raw_id))
+        else:
+            uid = f"el_{uuid.uuid4().hex[:8]}"
 
         has_events = any(k.startswith("on_") for k in self.kwargs)
         has_reactive_kwargs = any(
@@ -114,11 +125,43 @@ class Component:
         if needs_id or has_id_in_kwargs:
             attrs.append(f'id="{uid}"')
 
-        base_classes = []
+        base_classes: list[str] = []
+
+        # ── class_name: split plain vs pseudo-prefixed utilities ─────────────
+        # Pseudo-prefixed classes like `hover:bg-blue-700` must NOT appear in
+        # the HTML class="" attribute (they'd be inert). Instead they are
+        # compiled as `#uid:hover { background-color: ... }` rules so the
+        # browser and CSS bundlers see perfectly valid CSS.
+        _PSEUDO_PREFIXES = (
+            "hover", "focus", "active", "disabled", "checked",
+            "focus-within", "focus-visible", "placeholder", "visited",
+        )
         if "class_name" in self.kwargs:
             cls_str: str = self.kwargs.pop("class_name")
-            base_classes.append(cls_str)
-            register_classes(cls_str)
+            plain_classes: list[str] = []
+            pseudo_pairs: list[tuple[str, str]] = []  # (pseudo, actual_cls)
+            for c in cls_str.split():
+                c = c.strip()
+                if not c:
+                    continue
+                if ":" in c:
+                    prefix, actual = c.split(":", 1)
+                    if prefix in _PSEUDO_PREFIXES:
+                        pseudo_pairs.append((prefix, actual))
+                        continue  # Don't add to HTML class attribute
+                plain_classes.append(c)
+
+            if plain_classes:
+                plain_str = " ".join(plain_classes)
+                base_classes.append(plain_str)
+                register_classes(plain_str)
+
+            if pseudo_pairs:
+                # Pseudo classes require an element ID
+                if f'id="{uid}"' not in attrs:
+                    attrs.insert(0, f'id="{uid}"')
+                for prefix, actual_cls in pseudo_pairs:
+                    register_pseudo_for_element(uid, prefix, actual_cls)
 
         if "hover_class" in self.kwargs:
             register_hover_for_element(uid, self.kwargs.pop("hover_class"))

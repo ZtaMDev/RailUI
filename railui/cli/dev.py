@@ -241,17 +241,21 @@ def run(project_dir: str, host: str, config: RailUIConfig) -> int:
         sys.stdout.flush()
 
     try:
-        logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+        logging.getLogger("uvicorn").setLevel(logging.CRITICAL)
+        logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
+        logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
         config_obj = uvicorn.Config(
             create_app(dist_dir=dev_dir, dev=True, project_dir=project_dir),
             host=host,
             port=port,
-            log_level="warning",
+            log_config=None,
             access_log=False,
+            timeout_graceful_shutdown=1,
+            timeout_keep_alive=1
         )
         server = uvicorn.Server(config_obj)
         server.run()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.exceptions.CancelledError):
         _force_shutdown()
         os._exit(0)
     except Exception:
